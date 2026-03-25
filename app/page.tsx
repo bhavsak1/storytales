@@ -1,4 +1,8 @@
-export default function Home() {
+import { supabase } from '@/lib/supabase'
+
+export default async function Home() {
+  const { error } = await supabase.from('profiles').select()
+  
   return (
     <main className="min-h-screen bg-amber-50 flex items-center justify-center">
       <div className="text-center">
@@ -6,7 +10,10 @@ export default function Home() {
           StoryTales
         </h1>
         <p className="text-xl text-amber-700">
-          Personalized storybooks for every child Coming Soon✨
+          Personalized storybooks for every child ✨
+        </p>
+        <p className="text-sm text-amber-600 mt-4">
+          Supabase: {error ? '❌ Not connected' : '✅ Connected'}
         </p>
       </div>
     </main>
