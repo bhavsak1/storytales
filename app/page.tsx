@@ -6,7 +6,7 @@ export default function Home() {
           StoryTales
         </h1>
         <p className="text-xl text-amber-700">
-          Personalized storybooks for every child ✨
+          Personalized storybooks for every child Coming Soon✨
         </p>
       </div>
     </main>
