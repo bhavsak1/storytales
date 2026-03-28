@@ -2,6 +2,12 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+interface StoryPage {
+  page: number
+  text: string
+  scene: string
+}
+
 const anthropic = new Anthropic()
 
 export async function POST(request: Request) {
@@ -78,16 +84,56 @@ export async function POST(request: Request) {
     console.log('Story saved:', savedStory.id)
 
     // Step 4: Update order status
-    await supabase
-      .from('orders')
-      .update({ status: 'complete' })
-      .eq('id', order.id)
+    // Step 4: Update order status
+    // Step 4: Generate illustrations
+const { fal } = await import('@fal-ai/client')
+fal.config({ credentials: process.env.FAL_KEY })
 
-    return NextResponse.json({ 
-      success: true,
-      orderId: order.id,
-      story: story
-    })
+const imagePromises = story.pages.map((page: StoryPage) =>
+  fal.subscribe('fal-ai/flux/dev', {
+    input: {
+      prompt: `Children's storybook illustration, watercolor style,
+      soft warm lighting, pastel colors. ${page.scene}.
+      Whimsical, cozy, professional children's book quality.`,
+      image_size: 'landscape_4_3',
+      num_inference_steps: 28,
+    }
+  })
+)
+const imageResults = await Promise.all(imagePromises)
+const illustrations = imageResults.map((r: { data: { images: { url: string }[] } }) => r.data.images[0].url)
+console.log('Illustrations generated:', illustrations.length)
+
+// Step 5: Save illustrations to Supabase
+const illustrationRows = illustrations.map((url: string, index: number) => ({
+  order_id: order.id,
+  story_id: savedStory.id,
+  page_number: index + 1,
+  image_url: url,
+  prompt_used: story.pages[index].scene,
+  status: 'complete'
+}))
+
+const { error: illError } = await supabase
+  .from('illustrations')
+  .insert(illustrationRows)
+
+if (illError) {
+  console.log('Illustration save error:', illError)
+}
+
+// Step 6: Update order status
+await supabase
+  .from('orders')
+  .update({ status: 'complete' })
+  .eq('id', order.id)
+
+return NextResponse.json({ 
+  success: true,
+  orderId: order.id,
+  story: story,
+  illustrations: illustrations
+})
 
   } catch (error) {
     console.log('Caught error:', error)

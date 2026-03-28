@@ -17,7 +17,8 @@ export default function Home() {
   })
   const [status, setStatus] = useState('')
   const [story, setStory] = useState<{title: string, pages: StoryPage[]} | null>(null)
-
+  const [illustrations, setIllustrations] = useState<string[]>([])
+  
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault()
   setStatus('generating')
@@ -33,6 +34,7 @@ export default function Home() {
   if (data.success) {
     setStatus('complete')
     setStory(data.story)
+    setIllustrations(data.illustrations || [])
   } else {
     setStatus('error')
     console.log('Error:', data.error)
@@ -135,16 +137,25 @@ export default function Home() {
     <h2 className="text-2xl font-bold text-amber-900 mb-4">
       {story.title}
     </h2>
-    {story.pages.map((page: StoryPage) => (
-      <div key={page.page} className="mb-4 p-4 bg-amber-50 rounded-lg">
-        <p className="text-xs font-bold text-amber-400 mb-2">
-          PAGE {page.page}
-        </p>
-        <p className="text-amber-800 leading-relaxed">
-          {page.text}
-        </p>
-      </div>
-    ))}
+    {story.pages.map((page: StoryPage, index: number) => (
+  <div key={page.page} className="mb-6 bg-amber-50 rounded-lg overflow-hidden">
+    {illustrations[index] && (
+      <img 
+        src={illustrations[index]} 
+        alt={`Page ${page.page} illustration`}
+        className="w-full h-48 object-cover"
+      />
+    )}
+    <div className="p-4">
+      <p className="text-xs font-bold text-amber-400 mb-2">
+        PAGE {page.page}
+      </p>
+      <p className="text-amber-800 leading-relaxed">
+        {page.text}
+      </p>
+    </div>
+  </div>
+))}
   </div>
 )}
 
