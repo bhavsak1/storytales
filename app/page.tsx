@@ -420,44 +420,14 @@ export default function Home() {
             )}
 
             {status === 'complete' && story && (
-              <div>
-                <div className="text-center mb-8">
-                  <div className="text-4xl mb-3">🎉</div>
-                  <h2 className="fredoka text-3xl text-amber-900 mb-2">{story.title}</h2>
-                  <p className="text-amber-700">A personalized story for {formData.childName}</p>
-                </div>
-
-                <div className="space-y-6">
-                  {story.pages.map((page: StoryPage, index: number) => (
-                    <div key={page.page} className="bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
-                      {illustrations[index] && (
-                        <img
-                          src={illustrations[index]}
-                          alt={`Page ${page.page}`}
-                          className="w-full h-56 object-cover"
-                        />
-                      )}
-                      <div className="p-5">
-                        <div className="text-xs font-bold text-amber-400 mb-2 uppercase tracking-wide">Page {page.page}</div>
-                        <p className="text-amber-800 leading-relaxed">{page.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-8 flex gap-3">
-                  <button
-                    onClick={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); }}
-                    className="flex-1 py-3 rounded-xl border-2 border-amber-300 text-amber-700 font-bold hover:bg-amber-50 transition-all"
-                  >
-                    Create Another Story
-                  </button>
-                  <button className="flex-1 py-3 rounded-xl fredoka text-lg btn-secondary">
-                    Download PDF 📄
-                  </button>
-                </div>
-              </div>
-            )}
+  <PageFlipBook
+    title={story.title}
+    pages={story.pages}
+    illustrations={illustrations}
+    childName={formData.childName}
+    onRestart={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); }}
+  />
+)}
 
             {status === 'error' && (
               <div className="text-center py-16">
@@ -476,5 +446,170 @@ export default function Home() {
         )}
       </div>
     </main>
+  )
+}
+
+function PageFlipBook({
+  title,
+  pages,
+  illustrations,
+  childName,
+  onRestart,
+}: {
+  title: string
+  pages: StoryPage[]
+  illustrations: string[]
+  childName: string
+  onRestart: () => void
+}) {
+  const [current, setCurrent] = useState(0)
+  const [direction, setDirection] = useState<'next' | 'prev'>('next')
+  const [animating, setAnimating] = useState(false)
+
+  const goTo = (index: number, dir: 'next' | 'prev') => {
+    if (animating) return
+    setDirection(dir)
+    setAnimating(true)
+    setTimeout(() => {
+      setCurrent(index)
+      setAnimating(false)
+    }, 350)
+  }
+
+  const next = () => {
+    if (current < pages.length - 1) goTo(current + 1, 'next')
+  }
+
+  const prev = () => {
+    if (current > 0) goTo(current - 1, 'prev')
+  }
+
+  return (
+    <div>
+      <style>{`
+        .page-exit-next { animation: exitLeft 0.35s ease forwards; }
+        .page-exit-prev { animation: exitRight 0.35s ease forwards; }
+        .page-enter-next { animation: enterRight 0.35s ease forwards; }
+        .page-enter-prev { animation: enterLeft 0.35s ease forwards; }
+
+        @keyframes exitLeft {
+          from { opacity: 1; transform: translateX(0) rotateY(0deg); }
+          to { opacity: 0; transform: translateX(-60px) rotateY(15deg); }
+        }
+        @keyframes exitRight {
+          from { opacity: 1; transform: translateX(0) rotateY(0deg); }
+          to { opacity: 0; transform: translateX(60px) rotateY(-15deg); }
+        }
+        @keyframes enterRight {
+          from { opacity: 0; transform: translateX(60px) rotateY(-15deg); }
+          to { opacity: 1; transform: translateX(0) rotateY(0deg); }
+        }
+        @keyframes enterLeft {
+          from { opacity: 0; transform: translateX(-60px) rotateY(15deg); }
+          to { opacity: 1; transform: translateX(0) rotateY(0deg); }
+        }
+      `}</style>
+
+      {/* Book title */}
+      <div className="text-center mb-6">
+        <div className="text-3xl mb-2">📖</div>
+        <h2 className="fredoka text-2xl text-amber-900">{title}</h2>
+        <p className="text-amber-600 text-sm mt-1">
+          A personalized story for {childName}
+        </p>
+      </div>
+
+      {/* Page card */}
+      <div
+        className={`bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-md ${
+          animating
+            ? direction === 'next'
+              ? 'page-exit-next'
+              : 'page-exit-prev'
+            : direction === 'next'
+            ? 'page-enter-next'
+            : 'page-enter-prev'
+        }`}
+        style={{ perspective: '1000px' }}
+      >
+        {/* Illustration */}
+        {illustrations[current] ? (
+          <img
+            src={illustrations[current]}
+            alt={`Page ${pages[current].page}`}
+            className="w-full h-64 object-cover"
+          />
+        ) : (
+          <div className="w-full h-64 bg-amber-100 flex items-center justify-center text-4xl">
+            📖
+          </div>
+        )}
+
+        {/* Story text */}
+        <div className="p-6">
+          <div className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">
+            Page {pages[current].page} of {pages.length}
+          </div>
+          <p className="text-amber-900 leading-relaxed text-lg">
+            {pages[current].text}
+          </p>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex items-center justify-between mt-6">
+        <button
+          onClick={prev}
+          disabled={current === 0}
+          className={`px-6 py-3 rounded-xl border-2 font-bold transition-all ${
+            current === 0
+              ? 'border-amber-100 text-amber-300 cursor-not-allowed'
+              : 'border-amber-300 text-amber-700 hover:bg-amber-50'
+          }`}
+        >
+          ← Prev
+        </button>
+
+        {/* Dot indicators */}
+        <div className="flex gap-2">
+          {pages.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i, i > current ? 'next' : 'prev')}
+              className={`rounded-full transition-all ${
+                i === current
+                  ? 'w-6 h-3 bg-amber-500'
+                  : 'w-3 h-3 bg-amber-200 hover:bg-amber-300'
+              }`}
+            />
+          ))}
+        </div>
+
+        <button
+          onClick={next}
+          disabled={current === pages.length - 1}
+          className={`px-6 py-3 rounded-xl font-bold transition-all ${
+            current === pages.length - 1
+              ? 'bg-amber-100 text-amber-300 cursor-not-allowed'
+              : 'btn-secondary cursor-pointer'
+          }`}
+        >
+          Next →
+        </button>
+      </div>
+
+      {/* Bottom actions */}
+      <div className="flex gap-3 mt-6">
+        <button
+          onClick={onRestart}
+          className="flex-1 py-3 rounded-xl border-2 border-amber-300 text-amber-700 font-bold hover:bg-amber-50 transition-all"
+        >
+          Create Another
+        </button>
+        <button className="flex-1 py-3 rounded-xl fredoka text-lg btn-secondary">
+          Download PDF 📄
+        </button>
+      </div>
+    </div>
   )
 }
