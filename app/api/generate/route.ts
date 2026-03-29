@@ -43,6 +43,9 @@ export async function POST(request: Request) {
         role: 'user',
         content: `Write a 3 page children's story about a child named ${childName}, 
         aged ${age}, who loves ${interests}. Theme: ${theme}.
+        Important: Set the story in India. Use Indian settings like streets, markets, 
+        festivals, nature and food where relevant. Keep names, places and cultural 
+        references authentically Indian. Make it warm and relatable for Indian families.
         Return JSON only:
         {
           "title": "story title",

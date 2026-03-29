@@ -8,157 +8,472 @@ interface StoryPage {
   scene: string
 }
 
-export default function Home() {
-  const [formData, setFormData] = useState({
-    childName: '',
-    age: '',
-    interests: '',
-    theme: ''
-  })
-  const [status, setStatus] = useState('')
-  const [story, setStory] = useState<{title: string, pages: StoryPage[]} | null>(null)
-  const [illustrations, setIllustrations] = useState<string[]>([])
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  setStatus('generating')
-
-  const response = await fetch('/api/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(formData)
-  })
-
-  const data = await response.json()
-  
-  if (data.success) {
-    setStatus('complete')
-    setStory(data.story)
-    setIllustrations(data.illustrations || [])
-  } else {
-    setStatus('error')
-    console.log('Error:', data.error)
-  }
+interface FormData {
+  childName: string
+  age: string
+  gender: string
+  interests: string[]
+  storyLength: string
+  theme: string
+  deliveryType: string
+  dedication: string
+  nickname: string
 }
 
+const INTERESTS = [
+  { label: 'Dinosaurs', emoji: '🦕' },
+  { label: 'Space', emoji: '🚀' },
+  { label: 'Unicorns', emoji: '🦄' },
+  { label: 'Dragons', emoji: '🐉' },
+  { label: 'Ocean', emoji: '🌊' },
+  { label: 'Sports', emoji: '⚽' },
+  { label: 'Art', emoji: '🎨' },
+  { label: 'Animals', emoji: '🐾' },
+  { label: 'Music', emoji: '🎵' },
+  { label: 'Superheroes', emoji: '🦸' },
+  { label: 'Nature', emoji: '🌿' },
+  { label: 'Magic', emoji: '🔮' },
+  { label: 'Robots', emoji: '🤖' },
+  { label: 'Castles', emoji: '🏰' },
+  { label: 'Food', emoji: '🍕' },
+  { label: 'Foxes', emoji: '🦊' },
+]
+
+const THEMES = [
+  { label: 'Royal Kingdom', emoji: '🏰', desc: 'Princes, princesses & quests' },
+  { label: 'Space Explorer', emoji: '🚀', desc: 'Blast off to new planets' },
+  { label: 'Ocean Adventure', emoji: '🌊', desc: 'Dive deep, find treasure' },
+  { label: 'Enchanted Forest', emoji: '🌲', desc: 'Magic, fairies & animals' },
+  { label: 'Superhero City', emoji: '🦸', desc: 'Save the day with powers' },
+  { label: 'Tiny World', emoji: '🍄', desc: 'Big adventure, small world' },
+]
+
+const LENGTHS = [
+  { label: 'Short & Sweet', emoji: '📖', pages: '3 pages', value: '3' },
+  { label: 'Just Right', emoji: '📚', pages: '5 pages', value: '5' },
+  { label: 'Epic Tale', emoji: '🏆', pages: '8 pages', value: '8' },
+]
+
+const DELIVERY = [
+  { label: 'Digital PDF', emoji: '📲', desc: 'Download instantly', price: '₹299', value: 'digital' },
+  { label: 'Printed Book', emoji: '📦', desc: 'Ships in 5-7 days', price: '₹1,199', value: 'print' },
+  { label: 'Both', emoji: '🎁', desc: 'PDF + hardcover', price: '₹1,399', value: 'both' },
+]
+
+export default function Home() {
+  const [step, setStep] = useState(1)
+  const [status, setStatus] = useState('')
+  const [story, setStory] = useState<{ title: string; pages: StoryPage[] } | null>(null)
+  const [illustrations, setIllustrations] = useState<string[]>([])
+  const [formData, setFormData] = useState<FormData>({
+    childName: '',
+    age: '',
+    gender: '',
+    interests: [],
+    storyLength: '3',
+    theme: '',
+    deliveryType: 'digital',
+    dedication: '',
+    nickname: '',
+  })
+
+  const toggleInterest = (interest: string) => {
+    const current = formData.interests
+    if (current.includes(interest)) {
+      setFormData({ ...formData, interests: current.filter(i => i !== interest) })
+    } else if (current.length < 4) {
+      setFormData({ ...formData, interests: [...current, interest] })
+    }
+  }
+
+  const handleSubmit = async () => {
+    setStatus('generating')
+    setStep(4)
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childName: formData.childName,
+          age: formData.age,
+          interests: formData.interests.join(', '),
+          theme: formData.theme,
+          storyLength: formData.storyLength,
+          dedication: formData.dedication,
+        }),
+      })
+      const data = await response.json()
+      if (data.success) {
+        setStatus('complete')
+        setStory(data.story)
+        setIllustrations(data.illustrations || [])
+      } else {
+        setStatus('error')
+      }
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  const canProceedStep1 = formData.childName && formData.age && formData.gender
+  const canProceedStep2 = formData.interests.length > 0
+  const canProceedStep3 = formData.theme
+
   return (
-    <main className="min-h-screen bg-amber-50 flex items-center justify-center p-8">
-      <div className="bg-white rounded-2xl shadow-sm border border-amber-100 p-8 w-full max-w-md">
-        
-        <h1 className="text-3xl font-bold text-amber-900 mb-2">StoryTales</h1>
-        <p className="text-amber-700 mb-6">Create a personalized story for your child</p>
+    <main className="min-h-screen bg-amber-50" style={{ fontFamily: "'Nunito', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
+        .fredoka { font-family: 'Fredoka One', cursive; }
+        .step-enter { animation: stepIn 0.35s ease; }
+        @keyframes stepIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        .chip-sel { background: #F4A832; border-color: #F4A832; color: white; }
+        .theme-sel { border-color: #F4867A; background: white; box-shadow: 0 4px 16px rgba(244,134,122,0.2); }
+        .delivery-sel { border-color: #F4A832; background: #FFFBF0; }
+        .btn-primary { background: linear-gradient(135deg, #F4867A, #D9604F); color: white; transition: all 0.2s; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(244,134,122,0.4); }
+        .btn-secondary { background: linear-gradient(135deg, #F4A832, #D4881A); color: white; transition: all 0.2s; }
+        .btn-secondary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(244,168,50,0.4); }
+        .pulse { animation: pulse 2s ease-in-out infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+      `}</style>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          
-          <div>
-            <label className="text-sm font-semibold text-amber-800 block mb-1">
-              Child&apos;s Name
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Aria"
-              value={formData.childName}
-              onChange={e => setFormData({...formData, childName: e.target.value})}
-              className="w-full border border-amber-200 rounded-lg px-4 py-2 text-amber-900 focus:outline-none focus:border-amber-400"
-              required
-            />
+      {/* NAV */}
+      <nav className="bg-white border-b border-amber-100 px-6 py-4 flex items-center justify-between">
+        <div className="fredoka text-2xl text-amber-900">📖 StoryTales</div>
+        {step < 4 && (
+          <div className="flex items-center gap-2">
+            {[1, 2, 3].map(s => (
+              <div key={s} className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                  s < step ? 'bg-green-500 text-white' :
+                  s === step ? 'bg-amber-500 text-white' :
+                  'bg-amber-100 text-amber-400'
+                }`}>
+                  {s < step ? '✓' : s}
+                </div>
+                {s < 3 && <div className={`w-8 h-0.5 ${s < step ? 'bg-green-400' : 'bg-amber-200'}`} />}
+              </div>
+            ))}
           </div>
+        )}
+      </nav>
 
-          <div>
-            <label className="text-sm font-semibold text-amber-800 block mb-1">
-              Age
-            </label>
-            <select
-              value={formData.age}
-              onChange={e => setFormData({...formData, age: e.target.value})}
-              className="w-full border border-amber-200 rounded-lg px-4 py-2 text-amber-900 focus:outline-none focus:border-amber-400"
-              required
-            >
-              <option value="">Select age...</option>
-              <option>2-3 years</option>
-              <option>4-5 years</option>
-              <option>6-7 years</option>
-              <option>8-10 years</option>
-            </select>
+      <div className="max-w-2xl mx-auto px-4 py-8">
+
+        {/* STEP 1 — ABOUT */}
+        {step === 1 && (
+          <div className="step-enter">
+            <div className="text-center mb-8">
+              <div className="text-4xl mb-3">🧒</div>
+              <h1 className="fredoka text-3xl text-amber-900 mb-2">About the Star of the Story</h1>
+              <p className="text-amber-700">Tell us about the child — this is how we make it personal.</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm space-y-5">
+
+              <div>
+                <label className="text-sm font-800 text-amber-800 block mb-1.5 font-bold uppercase tracking-wide text-xs">Child&apos;s Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Aria"
+                  value={formData.childName}
+                  onChange={e => setFormData({ ...formData, childName: e.target.value })}
+                  className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">Age *</label>
+                  <select
+                    value={formData.age}
+                    onChange={e => setFormData({ ...formData, age: e.target.value })}
+                    className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
+                  >
+                    <option value="">Select age...</option>
+                    <option>2-3 years</option>
+                    <option>4-5 years</option>
+                    <option>6-7 years</option>
+                    <option>8-10 years</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">They are a... *</label>
+                  <select
+                    value={formData.gender}
+                    onChange={e => setFormData({ ...formData, gender: e.target.value })}
+                    className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
+                  >
+                    <option value="">Select...</option>
+                    <option>Girl</option>
+                    <option>Boy</option>
+                    <option>Keep it neutral</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">Nickname or fun detail (optional)</label>
+                <input
+                  type="text"
+                  placeholder='e.g. "Loves her red shoes" or "Calls himself Captain Rohan"'
+                  value={formData.nickname}
+                  onChange={e => setFormData({ ...formData, nickname: e.target.value })}
+                  className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">Personal dedication (optional)</label>
+                <textarea
+                  rows={2}
+                  placeholder='"To my little star — may every dream come true. Love, Grandma"'
+                  value={formData.dedication}
+                  onChange={e => setFormData({ ...formData, dedication: e.target.value })}
+                  className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50 resize-none"
+                />
+              </div>
+
+              <button
+                onClick={() => setStep(2)}
+                disabled={!canProceedStep1}
+                className={`w-full py-4 rounded-xl fredoka text-lg ${canProceedStep1 ? 'btn-secondary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
+              >
+                Pick Their Interests →
+              </button>
+            </div>
           </div>
+        )}
 
-          <div>
-            <label className="text-sm font-semibold text-amber-800 block mb-1">
-              Interests
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. dinosaurs, space, unicorns"
-              value={formData.interests}
-              onChange={e => setFormData({...formData, interests: e.target.value})}
-              className="w-full border border-amber-200 rounded-lg px-4 py-2 text-amber-900 focus:outline-none focus:border-amber-400"
-              required
-            />
+        {/* STEP 2 — INTERESTS */}
+        {step === 2 && (
+          <div className="step-enter">
+            <div className="text-center mb-8">
+              <div className="text-4xl mb-3">💛</div>
+              <h1 className="fredoka text-3xl text-amber-900 mb-2">What Does {formData.childName} Love?</h1>
+              <p className="text-amber-700">Pick up to 4 interests — we&apos;ll weave them into every page.</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm space-y-6">
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-xs font-bold text-amber-800 uppercase tracking-wide">Interests ({formData.interests.length}/4)</label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {INTERESTS.map(({ label, emoji }) => (
+                    <button
+                      key={label}
+                      onClick={() => toggleInterest(label)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-full border-2 text-sm font-semibold transition-all ${
+                        formData.interests.includes(label)
+                          ? 'chip-sel border-amber-400'
+                          : 'border-amber-200 text-amber-700 hover:border-amber-300 bg-amber-50'
+                      }`}
+                    >
+                      <span>{emoji}</span> {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Story Length</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {LENGTHS.map(({ label, emoji, pages, value }) => (
+                    <button
+                      key={value}
+                      onClick={() => setFormData({ ...formData, storyLength: value })}
+                      className={`p-4 rounded-xl border-2 text-center transition-all ${
+                        formData.storyLength === value
+                          ? 'border-sky-400 bg-sky-50'
+                          : 'border-amber-200 bg-amber-50 hover:border-amber-300'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">{emoji}</div>
+                      <div className="font-bold text-amber-900 text-sm">{label}</div>
+                      <div className="text-xs text-amber-600">{pages}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(1)}
+                  className="px-6 py-3 rounded-xl border-2 border-amber-200 text-amber-700 font-bold hover:bg-amber-50 transition-all"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={() => setStep(3)}
+                  disabled={!canProceedStep2}
+                  className={`flex-1 py-3 rounded-xl fredoka text-lg ${canProceedStep2 ? 'btn-secondary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
+                >
+                  Choose Theme →
+                </button>
+              </div>
+            </div>
           </div>
+        )}
 
-          <div>
-            <label className="text-sm font-semibold text-amber-800 block mb-1">
-              Story Theme
-            </label>
-            <select
-              value={formData.theme}
-              onChange={e => setFormData({...formData, theme: e.target.value})}
-              className="w-full border border-amber-200 rounded-lg px-4 py-2 text-amber-900 focus:outline-none focus:border-amber-400"
-              required
-            >
-              <option value="">Select theme...</option>
-              <option>Royal Kingdom</option>
-              <option>Space Explorer</option>
-              <option>Ocean Adventure</option>
-              <option>Enchanted Forest</option>
-              <option>Superhero City</option>
-            </select>
+        {/* STEP 3 — THEME + DELIVERY */}
+        {step === 3 && (
+          <div className="step-enter">
+            <div className="text-center mb-8">
+              <div className="text-4xl mb-3">🎨</div>
+              <h1 className="fredoka text-3xl text-amber-900 mb-2">Pick the Story World</h1>
+              <p className="text-amber-700">Choose a theme and how you&apos;d like to receive the book.</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm space-y-6">
+
+              <div>
+                <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Story Theme *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {THEMES.map(({ label, emoji, desc }) => (
+                    <button
+                      key={label}
+                      onClick={() => setFormData({ ...formData, theme: label })}
+                      className={`p-4 rounded-xl border-2 text-left transition-all relative ${
+                        formData.theme === label ? 'theme-sel' : 'border-amber-200 bg-amber-50 hover:border-amber-300'
+                      }`}
+                    >
+                      {formData.theme === label && (
+                        <span className="absolute top-2 right-2 w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center text-white text-xs">✓</span>
+                      )}
+                      <div className="text-2xl mb-1">{emoji}</div>
+                      <div className="font-bold text-amber-900 text-sm">{label}</div>
+                      <div className="text-xs text-amber-600">{desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Delivery</label>
+                <div className="space-y-2">
+                  {DELIVERY.map(({ label, emoji, desc, price, value }) => (
+                    <button
+                      key={value}
+                      onClick={() => setFormData({ ...formData, deliveryType: value })}
+                      className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${
+                        formData.deliveryType === value ? 'delivery-sel' : 'border-amber-200 bg-amber-50 hover:border-amber-300'
+                      }`}
+                    >
+                      <span className="text-2xl">{emoji}</span>
+                      <div className="flex-1">
+                        <div className="font-bold text-amber-900">{label}</div>
+                        <div className="text-xs text-amber-600">{desc}</div>
+                      </div>
+                      <div className="fredoka text-lg text-green-600">{price}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ORDER SUMMARY */}
+              <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                <div className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-3">Order Summary</div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-amber-600">Hero</span><span className="font-bold text-amber-900">{formData.childName}, {formData.age}</span></div>
+                  <div className="flex justify-between"><span className="text-amber-600">Interests</span><span className="font-bold text-amber-900">{formData.interests.join(', ') || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-amber-600">Theme</span><span className="font-bold text-amber-900">{formData.theme || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-amber-600">Length</span><span className="font-bold text-amber-900">{formData.storyLength} pages</span></div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(2)}
+                  className="px-6 py-3 rounded-xl border-2 border-amber-200 text-amber-700 font-bold hover:bg-amber-50 transition-all"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canProceedStep3}
+                  className={`flex-1 py-3 rounded-xl fredoka text-lg ${canProceedStep3 ? 'btn-primary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
+                >
+                  ✨ Create My Story!
+                </button>
+              </div>
+            </div>
           </div>
+        )}
 
-          <button
-            type="submit"
-            className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-lg mt-2 transition-colors"
-          >
-            ✨ Create My Story
-          </button>
+        {/* STEP 4 — GENERATING / RESULT */}
+        {step === 4 && (
+          <div className="step-enter">
+            {status === 'generating' && (
+              <div className="text-center py-16">
+                <div className="text-6xl mb-6 pulse">🪄</div>
+                <h2 className="fredoka text-3xl text-amber-900 mb-3">Creating {formData.childName}&apos;s Story...</h2>
+                <p className="text-amber-700 mb-2">Our illustrators are working their magic!</p>
+                <p className="text-amber-500 text-sm">This takes about 30-40 seconds</p>
+                <div className="mt-8 flex justify-center gap-2">
+                  {['Writing story...', 'Drawing illustrations...', 'Adding magic...'].map((msg, i) => (
+                    <div key={i} className="px-3 py-1 bg-amber-100 rounded-full text-xs text-amber-700" style={{ animationDelay: `${i * 0.5}s` }}>{msg}</div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        </form>
+            {status === 'complete' && story && (
+              <div>
+                <div className="text-center mb-8">
+                  <div className="text-4xl mb-3">🎉</div>
+                  <h2 className="fredoka text-3xl text-amber-900 mb-2">{story.title}</h2>
+                  <p className="text-amber-700">A personalized story for {formData.childName}</p>
+                </div>
 
-        {status === 'generating' && (
-  <div className="mt-6 p-4 bg-amber-50 rounded-lg text-center">
-    <p className="text-amber-700 font-semibold">
-      🪄 Creating your story... please wait!
-    </p>
-  </div>
-)}
+                <div className="space-y-6">
+                  {story.pages.map((page: StoryPage, index: number) => (
+                    <div key={page.page} className="bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
+                      {illustrations[index] && (
+                        <img
+                          src={illustrations[index]}
+                          alt={`Page ${page.page}`}
+                          className="w-full h-56 object-cover"
+                        />
+                      )}
+                      <div className="p-5">
+                        <div className="text-xs font-bold text-amber-400 mb-2 uppercase tracking-wide">Page {page.page}</div>
+                        <p className="text-amber-800 leading-relaxed">{page.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-{status === 'complete' && story && (
-  <div className="mt-6">
-    <h2 className="text-2xl font-bold text-amber-900 mb-4">
-      {story.title}
-    </h2>
-    {story.pages.map((page: StoryPage, index: number) => (
-  <div key={page.page} className="mb-6 bg-amber-50 rounded-lg overflow-hidden">
-    {illustrations[index] && (
-      <img 
-        src={illustrations[index]} 
-        alt={`Page ${page.page} illustration`}
-        className="w-full h-48 object-cover"
-      />
-    )}
-    <div className="p-4">
-      <p className="text-xs font-bold text-amber-400 mb-2">
-        PAGE {page.page}
-      </p>
-      <p className="text-amber-800 leading-relaxed">
-        {page.text}
-      </p>
-    </div>
-  </div>
-))}
-  </div>
-)}
+                <div className="mt-8 flex gap-3">
+                  <button
+                    onClick={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); }}
+                    className="flex-1 py-3 rounded-xl border-2 border-amber-300 text-amber-700 font-bold hover:bg-amber-50 transition-all"
+                  >
+                    Create Another Story
+                  </button>
+                  <button className="flex-1 py-3 rounded-xl fredoka text-lg btn-secondary">
+                    Download PDF 📄
+                  </button>
+                </div>
+              </div>
+            )}
 
+            {status === 'error' && (
+              <div className="text-center py-16">
+                <div className="text-5xl mb-4">😔</div>
+                <h2 className="fredoka text-2xl text-amber-900 mb-3">Something went wrong</h2>
+                <p className="text-amber-700 mb-6">Please try again</p>
+                <button
+                  onClick={() => { setStep(1); setStatus(''); }}
+                  className="px-8 py-3 rounded-xl fredoka text-lg btn-secondary"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   )
