@@ -421,12 +421,13 @@ export default function Home() {
 
             {status === 'complete' && story && (
   <PageFlipBook
-    title={story.title}
-    pages={story.pages}
-    illustrations={illustrations}
-    childName={formData.childName}
-    onRestart={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); }}
-  />
+  title={story.title}
+  pages={story.pages}
+  illustrations={illustrations}
+  childName={formData.childName}
+  dedication={formData.dedication}
+  onRestart={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); }}
+/>
 )}
 
             {status === 'error' && (
@@ -454,14 +455,38 @@ function PageFlipBook({
   pages,
   illustrations,
   childName,
+  dedication,
   onRestart,
 }: {
   title: string
   pages: StoryPage[]
   illustrations: string[]
   childName: string
+  dedication: string
   onRestart: () => void
 }) {
+  const [downloading, setDownloading] = useState(false)
+
+  const handleDownloadPDF = async () => {
+    setDownloading(true)
+    try {
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, pages, illustrations, childName, dedication }),
+      })
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${childName}-storybook.pdf`
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.log('Download error:', error)
+    }
+    setDownloading(false)
+  }
   const [current, setCurrent] = useState(0)
   const [direction, setDirection] = useState<'next' | 'prev'>('next')
   const [animating, setAnimating] = useState(false)
@@ -606,9 +631,13 @@ function PageFlipBook({
         >
           Create Another
         </button>
-        <button className="flex-1 py-3 rounded-xl fredoka text-lg btn-secondary">
-          Download PDF 📄
-        </button>
+        <button
+  onClick={handleDownloadPDF}
+  disabled={downloading}
+  className={`flex-1 py-3 rounded-xl fredoka text-lg ${downloading ? 'bg-amber-200 text-amber-400 cursor-not-allowed' : 'btn-secondary cursor-pointer'}`}
+>
+  {downloading ? 'Generating PDF...' : 'Download PDF 📄'}
+</button>
       </div>
     </div>
   )
