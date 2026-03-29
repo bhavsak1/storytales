@@ -46,12 +46,16 @@ export async function POST(request: Request) {
         Return JSON only:
         {
           "title": "story title",
-          "pages": [
-            { "page": 1, "text": "story text", "scene": "illustration scene description" },
-            { "page": 2, "text": "story text", "scene": "illustration scene description" },
-            { "page": 3, "text": "story text", "scene": "illustration scene description" }
-          ]
-        }`
+          "character": {
+          "description": "detailed physical description of ${childName} for illustration consistency - include hair color, hair style, eye color, skin tone, clothing colors and style. Be very specific.",
+          "style": "cheerful and expressive"
+        },
+        "pages": [
+          { "page": 1, "text": "story text", "scene": "illustration scene description mentioning ${childName} by name" },
+          { "page": 2, "text": "story text", "scene": "illustration scene description mentioning ${childName} by name" },
+          { "page": 3, "text": "story text", "scene": "illustration scene description mentioning ${childName} by name" }
+        ]
+      }`
       }]
     })
     console.log('Claude response received')
@@ -90,13 +94,13 @@ const { fal } = await import('@fal-ai/client')
 fal.config({ credentials: process.env.FAL_KEY })
 
 const imagePromises = story.pages.map((page: StoryPage) =>
-  fal.subscribe('fal-ai/flux/dev', {
+  fal.subscribe('fal-ai/flux/schnell', {
     input: {
       prompt: `Children's storybook illustration, watercolor style,
       soft warm lighting, pastel colors. ${page.scene}.
       Whimsical, cozy, professional children's book quality.`,
       image_size: 'landscape_4_3',
-      num_inference_steps: 28,
+      num_inference_steps: 4,
     }
   })
 )
