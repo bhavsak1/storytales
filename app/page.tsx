@@ -491,28 +491,34 @@ function PageFlipBook({
     const response = await fetch('/api/generate-pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, pages, illustrations, childName, dedication }),
-    })
-    const blob = await response.blob()
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${childName}-storybook.pdf`
-    a.click()
-    window.URL.revokeObjectURL(url)
-
-    // Send email notification
-    await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email: customerEmail,
-        childName,
         title,
-        downloadUrl: window.location.href,
+        pages,
+        illustrations,
+        childName,
+        dedication,
+        orderId: Date.now().toString(),
       }),
     })
 
+    const data = await response.json()
+
+    if (data.success && data.pdfUrl) {
+      // Open PDF in new tab
+      window.open(data.pdfUrl, '_blank')
+
+      // Send email with real Supabase URL
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: customerEmail,
+          childName,
+          title,
+          downloadUrl: data.pdfUrl,
+        }),
+      })
+    }
   } catch (error) {
     console.log('Download error:', error)
   }

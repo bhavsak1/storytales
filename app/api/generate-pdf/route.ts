@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
-    const { title, pages, illustrations, childName, dedication } = await request.json()
+    const { title, pages, illustrations, childName, dedication, orderId } = await request.json()
 
     const { jsPDF } = await import('jspdf')
     const doc = new jsPDF({
@@ -78,31 +79,23 @@ export async function POST(request: Request) {
       doc.setTextColor(244, 168, 50)
       doc.text(`Page ${page.page} of ${pages.length}`, pageWidth / 2, 12, { align: 'center' })
 
-      // Fetch and embed illustration
-const imageUrl = illustrations[page.page - 1]
-if (imageUrl) {
-  try {
-    const imageData = await fetchImageAsBase64(imageUrl)
-    if (imageData) {
-      doc.addImage(imageData, 'JPEG', 20, 18, pageWidth - 40, 120)
-    }
-  } catch {
-    // Fallback to placeholder
-    doc.setFillColor(232, 213, 176)
-    doc.setDrawColor(212, 196, 160)
-    doc.roundedRect(20, 18, pageWidth - 40, 120, 4, 4, 'FD')
-    doc.setFontSize(11)
-    doc.setTextColor(158, 128, 96)
-    doc.text('[ Illustration ]', pageWidth / 2, 82, { align: 'center' })
-  }
-} else {
-  doc.setFillColor(232, 213, 176)
-  doc.setDrawColor(212, 196, 160)
-  doc.roundedRect(20, 18, pageWidth - 40, 120, 4, 4, 'FD')
-  doc.setFontSize(11)
-  doc.setTextColor(158, 128, 96)
-  doc.text('[ Illustration ]', pageWidth / 2, 82, { align: 'center' })
-}
+      // Illustration
+      const imageUrl = illustrations[page.page - 1]
+      if (imageUrl) {
+        try {
+          const imageData = await fetchImageAsBase64(imageUrl)
+          if (imageData) {
+            doc.addImage(imageData, 'JPEG', 20, 18, pageWidth - 40, 120)
+          }
+        } catch {
+          doc.setFillColor(232, 213, 176)
+          doc.setDrawColor(212, 196, 160)
+          doc.roundedRect(20, 18, pageWidth - 40, 120, 4, 4, 'FD')
+          doc.setFontSize(11)
+          doc.setTextColor(158, 128, 96)
+          doc.text('[ Illustration ]', pageWidth / 2, 82, { align: 'center' })
+        }
+      }
 
       // Story text
       doc.setFontSize(13)
@@ -127,14 +120,47 @@ if (imageUrl) {
     doc.setTextColor(92, 61, 30)
     doc.text('Created with love using StoryTales', pageWidth / 2, pageHeight / 2 + 10, { align: 'center' })
 
-    // Output as buffer
+    // ── SAVE TO SUPABASE STORAGE ──
     const pdfBuffer = Buffer.from(doc.output('arraybuffer'))
+    const fileName = `${orderId || Date.now()}-${childName}-storybook.pdf`
 
-    return new NextResponse(pdfBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${childName}-storybook.pdf"`,
-      },
+    const { error: uploadError } = await supabase.storage
+      .from('storybooks')
+      .upload(fileName, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true,
+      })
+
+    if (uploadError) {
+      console.log('Upload error:', uploadError)
+      // Fall back to direct download if upload fails
+      return new NextResponse(pdfBuffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${childName}-storybook.pdf"`,
+        },
+      })
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('storybooks')
+      .getPublicUrl(fileName)
+
+    const publicUrl = urlData.publicUrl
+    console.log('PDF saved to Supabase:', publicUrl)
+
+    // Update story record with PDF URL
+    if (orderId) {
+      await supabase
+        .from('stories')
+        .update({ pdf_url: publicUrl })
+        .eq('order_id', orderId)
+    }
+
+    return NextResponse.json({
+      success: true,
+      pdfUrl: publicUrl,
     })
 
   } catch (error) {
