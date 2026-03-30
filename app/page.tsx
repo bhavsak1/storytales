@@ -18,6 +18,7 @@ interface FormData {
   deliveryType: string
   dedication: string
   nickname: string
+  email: string
 }
 
 const INTERESTS = [
@@ -75,6 +76,7 @@ export default function Home() {
     deliveryType: 'digital',
     dedication: '',
     nickname: '',
+    email: '',
   })
 
   const toggleInterest = (interest: string) => {
@@ -115,7 +117,7 @@ export default function Home() {
     }
   }
 
-  const canProceedStep1 = formData.childName && formData.age && formData.gender
+  const canProceedStep1 = formData.childName && formData.age && formData.gender && formData.email
   const canProceedStep2 = formData.interests.length > 0
   const canProceedStep3 = formData.theme
 
@@ -222,6 +224,19 @@ export default function Home() {
                   className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
                 />
               </div>
+
+              <div>
+  <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">
+    Your Email *
+  </label>
+  <input
+    type="email"
+    placeholder="we'll send the storybook here"
+    value={formData.email}
+    onChange={e => setFormData({ ...formData, email: e.target.value })}
+    className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
+  />
+</div>
 
               <div>
                 <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">Personal dedication (optional)</label>
@@ -426,6 +441,7 @@ export default function Home() {
   illustrations={illustrations}
   childName={formData.childName}
   dedication={formData.dedication}
+  customerEmail={formData.email}
   onRestart={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); }}
 />
 )}
@@ -456,6 +472,7 @@ function PageFlipBook({
   illustrations,
   childName,
   dedication,
+  customerEmail,
   onRestart,
 }: {
   title: string
@@ -463,30 +480,44 @@ function PageFlipBook({
   illustrations: string[]
   childName: string
   dedication: string
+  customerEmail: string
   onRestart: () => void
 }) {
   const [downloading, setDownloading] = useState(false)
 
   const handleDownloadPDF = async () => {
-    setDownloading(true)
-    try {
-      const response = await fetch('/api/generate-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, pages, illustrations, childName, dedication }),
-      })
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${childName}-storybook.pdf`
-      a.click()
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.log('Download error:', error)
-    }
-    setDownloading(false)
+  setDownloading(true)
+  try {
+    const response = await fetch('/api/generate-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, pages, illustrations, childName, dedication }),
+    })
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${childName}-storybook.pdf`
+    a.click()
+    window.URL.revokeObjectURL(url)
+
+    // Send email notification
+    await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: customerEmail,
+        childName,
+        title,
+        downloadUrl: window.location.href,
+      }),
+    })
+
+  } catch (error) {
+    console.log('Download error:', error)
   }
+  setDownloading(false)
+}
   const [current, setCurrent] = useState(0)
   const [direction, setDirection] = useState<'next' | 'prev'>('next')
   const [animating, setAnimating] = useState(false)
