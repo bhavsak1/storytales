@@ -8,9 +8,21 @@ interface StoryPage {
   scene: string
 }
 
+async function fetchImageAsBase64(url: string): Promise<string> {
+  try {
+    const response = await fetch(url)
+    const buffer = await response.arrayBuffer()
+    const base64 = Buffer.from(buffer).toString('base64')
+    return `data:image/jpeg;base64,${base64}`
+  } catch (error) {
+    console.log('Image fetch error:', error)
+    return ''
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const { title, pages, childName, dedication } = await request.json()
+    const { title, pages, illustrations, childName, dedication } = await request.json()
 
     const { jsPDF } = await import('jspdf')
     const doc = new jsPDF({
@@ -55,7 +67,7 @@ export async function POST(request: Request) {
     }
 
     // ── STORY PAGES ──
-    pages.forEach((page: StoryPage) => {
+    for (const page of pages) {
       doc.addPage()
       doc.setFillColor(255, 248, 238)
       doc.rect(0, 0, pageWidth, pageHeight, 'F')
@@ -66,15 +78,31 @@ export async function POST(request: Request) {
       doc.setTextColor(244, 168, 50)
       doc.text(`Page ${page.page} of ${pages.length}`, pageWidth / 2, 12, { align: 'center' })
 
-      // Illustration placeholder box
-      doc.setFillColor(232, 213, 176)
-      doc.setDrawColor(212, 196, 160)
-      doc.roundedRect(20, 18, pageWidth - 40, 120, 4, 4, 'FD')
-
-      doc.setFontSize(11)
-      doc.setTextColor(158, 128, 96)
-      doc.setFont('helvetica', 'normal')
-      doc.text('[ Illustration ]', pageWidth / 2, 82, { align: 'center' })
+      // Fetch and embed illustration
+const imageUrl = illustrations[page.page - 1]
+if (imageUrl) {
+  try {
+    const imageData = await fetchImageAsBase64(imageUrl)
+    if (imageData) {
+      doc.addImage(imageData, 'JPEG', 20, 18, pageWidth - 40, 120)
+    }
+  } catch {
+    // Fallback to placeholder
+    doc.setFillColor(232, 213, 176)
+    doc.setDrawColor(212, 196, 160)
+    doc.roundedRect(20, 18, pageWidth - 40, 120, 4, 4, 'FD')
+    doc.setFontSize(11)
+    doc.setTextColor(158, 128, 96)
+    doc.text('[ Illustration ]', pageWidth / 2, 82, { align: 'center' })
+  }
+} else {
+  doc.setFillColor(232, 213, 176)
+  doc.setDrawColor(212, 196, 160)
+  doc.roundedRect(20, 18, pageWidth - 40, 120, 4, 4, 'FD')
+  doc.setFontSize(11)
+  doc.setTextColor(158, 128, 96)
+  doc.text('[ Illustration ]', pageWidth / 2, 82, { align: 'center' })
+}
 
       // Story text
       doc.setFontSize(13)
@@ -82,7 +110,7 @@ export async function POST(request: Request) {
       doc.setFont('helvetica', 'normal')
       const textLines = doc.splitTextToSize(page.text, pageWidth - 40)
       doc.text(textLines, pageWidth / 2, 158, { align: 'center' })
-    })
+    }
 
     // ── LAST PAGE ──
     doc.addPage()
