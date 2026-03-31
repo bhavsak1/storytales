@@ -1,727 +1,215 @@
-'use client'
+import Link from 'next/link'
 
-import { useState } from 'react'
-import { useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
-import type { User } from '@supabase/supabase-js'
-
-interface StoryPage {
-  page: number
-  text: string
-  scene: string
-}
-
-interface FormData {
-  childName: string
-  age: string
-  gender: string
-  interests: string[]
-  storyLength: string
-  theme: string
-  deliveryType: string
-  dedication: string
-  nickname: string
-  email: string
-}
-
-const INTERESTS = [
-  { label: 'Dinosaurs', emoji: '🦕' },
-  { label: 'Space', emoji: '🚀' },
-  { label: 'Unicorns', emoji: '🦄' },
-  { label: 'Dragons', emoji: '🐉' },
-  { label: 'Ocean', emoji: '🌊' },
-  { label: 'Sports', emoji: '⚽' },
-  { label: 'Art', emoji: '🎨' },
-  { label: 'Animals', emoji: '🐾' },
-  { label: 'Music', emoji: '🎵' },
-  { label: 'Superheroes', emoji: '🦸' },
-  { label: 'Nature', emoji: '🌿' },
-  { label: 'Magic', emoji: '🔮' },
-  { label: 'Robots', emoji: '🤖' },
-  { label: 'Castles', emoji: '🏰' },
-  { label: 'Food', emoji: '🍕' },
-  { label: 'Foxes', emoji: '🦊' },
-]
-
-const THEMES = [
-  { label: 'Royal Kingdom', emoji: '🏰', desc: 'Princes, princesses & quests' },
-  { label: 'Space Explorer', emoji: '🚀', desc: 'Blast off to new planets' },
-  { label: 'Ocean Adventure', emoji: '🌊', desc: 'Dive deep, find treasure' },
-  { label: 'Enchanted Forest', emoji: '🌲', desc: 'Magic, fairies & animals' },
-  { label: 'Superhero City', emoji: '🦸', desc: 'Save the day with powers' },
-  { label: 'Tiny World', emoji: '🍄', desc: 'Big adventure, small world' },
-]
-
-const LENGTHS = [
-  { label: 'Short & Sweet', emoji: '📖', pages: '3 pages', value: '3' },
-  { label: 'Just Right', emoji: '📚', pages: '5 pages', value: '5' },
-  { label: 'Epic Tale', emoji: '🏆', pages: '8 pages', value: '8' },
-]
-
-const DELIVERY = [
-  { label: 'Digital PDF', emoji: '📲', desc: 'Download instantly', price: '₹299', value: 'digital' },
-  { label: 'Printed Book', emoji: '📦', desc: 'Ships in 5-7 days', price: '₹1,199', value: 'print' },
-  { label: 'Both', emoji: '🎁', desc: 'PDF + hardcover', price: '₹1,399', value: 'both' },
-]
-
-export default function Home() {
-  const [step, setStep] = useState(1)
-  const [status, setStatus] = useState('')
-  const [story, setStory] = useState<{ title: string; pages: StoryPage[] } | null>(null)
-  const [illustrations, setIllustrations] = useState<string[]>([])
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [formData, setFormData] = useState<FormData>({
-    childName: '',
-    age: '',
-    gender: '',
-    interests: [],
-    storyLength: '3',
-    theme: '',
-    deliveryType: 'digital',
-    dedication: '',
-    nickname: '',
-    email: '',
-  })
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-      } else {
-        setUser(user)
-      }
-    }
-    getUser()
-  }, [router])
-
-  const toggleInterest = (interest: string) => {
-    const current = formData.interests
-    if (current.includes(interest)) {
-      setFormData({ ...formData, interests: current.filter(i => i !== interest) })
-    } else if (current.length < 4) {
-      setFormData({ ...formData, interests: [...current, interest] })
-    }
-  }
-
-  const handleSubmit = async () => {
-    setStatus('generating')
-    setStep(4)
-    try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          childName: formData.childName,
-          age: formData.age,
-          interests: formData.interests.join(', '),
-          theme: formData.theme,
-          storyLength: formData.storyLength,
-          dedication: formData.dedication,
-        }),
-      })
-      const data = await response.json()
-      if (data.success) {
-        setStatus('complete')
-        setStory(data.story)
-        setIllustrations(data.illustrations || [])
-      } else {
-        setStatus('error')
-      }
-    } catch {
-      setStatus('error')
-    }
-  }
-
-  const canProceedStep1 = formData.childName && formData.age && formData.gender && formData.email
-  const canProceedStep2 = formData.interests.length > 0
-  const canProceedStep3 = formData.theme
-
+export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-amber-50" style={{ fontFamily: "'Nunito', sans-serif" }}>
+    <main style={{ fontFamily: "'Nunito', sans-serif", background: '#FFF8EE', minHeight: '100vh' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
         .fredoka { font-family: 'Fredoka One', cursive; }
-        .step-enter { animation: stepIn 0.35s ease; }
-        @keyframes stepIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-        .chip-sel { background: #F4A832; border-color: #F4A832; color: white; }
-        .theme-sel { border-color: #F4867A; background: white; box-shadow: 0 4px 16px rgba(244,134,122,0.2); }
-        .delivery-sel { border-color: #F4A832; background: #FFFBF0; }
-        .btn-primary { background: linear-gradient(135deg, #F4867A, #D9604F); color: white; transition: all 0.2s; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        .btn-primary { background: linear-gradient(135deg, #F4867A, #D9604F); color: white; transition: all 0.2s; display: inline-block; }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(244,134,122,0.4); }
-        .btn-secondary { background: linear-gradient(135deg, #F4A832, #D4881A); color: white; transition: all 0.2s; }
-        .btn-secondary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(244,168,50,0.4); }
-        .pulse { animation: pulse 2s ease-in-out infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+        .btn-secondary { background: white; color: #2D1B00; border: 2px solid #E8D5A0; transition: all 0.2s; display: inline-block; }
+        .btn-secondary:hover { border-color: #F4A832; transform: translateY(-2px); }
+        .book-card:hover { transform: translateY(-6px) rotate(-1deg); }
+        .book-card:nth-child(2) { transform: rotate(2deg); margin-top: 12px; }
+        .book-card:nth-child(2):hover { transform: translateY(-6px) rotate(1deg); }
+        .book-card:nth-child(4) { transform: rotate(-1.5deg); margin-top: 8px; }
+        .step-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(45,27,0,0.1); }
+        .pricing-card:hover { transform: translateY(-4px); }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+        .float { animation: float 4s ease-in-out infinite; }
       `}</style>
 
       {/* NAV */}
-      <nav className="bg-white border-b border-amber-100 px-6 py-4 flex items-center justify-between">
-  <div className="fredoka text-2xl text-amber-900">📖 StoryTales</div>
-  
-  <div className="flex items-center gap-3">
-    {user && (
-      <>
-        <span className="text-sm text-amber-700 font-semibold hidden sm:block">
-          {user.user_metadata?.full_name || user.email}
-        </span>
-        {user.user_metadata?.avatar_url && (
-          <img
-            src={user.user_metadata.avatar_url}
-            alt="Profile"
-            className="w-8 h-8 rounded-full border-2 border-amber-200"
-          />
-        )}
-        <button
-          onClick={async () => {
-            await supabase.auth.signOut()
-            router.push('/login')
-          }}
-          className="text-xs font-bold text-amber-600 border border-amber-200 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-all"
-        >
-          Sign Out
-        </button>
-      </>
-    )}
-  </div>
+      <nav style={{ background: 'rgba(255,253,248,0.9)', backdropFilter: 'blur(12px)', borderBottom: '1.5px solid #F5E6C8', padding: '16px 48px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div className="fredoka" style={{ fontSize: '1.75rem', color: '#2D1B00' }}>📖 StoryTales</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <a href="#how-it-works" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#5C3D1E', textDecoration: 'none' }}>How it works</a>
+          <a href="#pricing" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#5C3D1E', textDecoration: 'none' }}>Pricing</a>
+          <Link href="/login" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#5C3D1E', textDecoration: 'none' }}>Sign in</Link>
+          <Link href="/create" className="btn-primary fredoka" style={{ padding: '10px 24px', borderRadius: '50px', fontSize: '1rem', textDecoration: 'none', boxShadow: '0 4px 14px rgba(244,134,122,0.35)' }}>
+            Create Their Story ✨
+          </Link>
+        </div>
+      </nav>
 
-  {step < 4 && (
+      {/* HERO */}
+      <section style={{ maxWidth: '1100px', margin: '0 auto', padding: '80px 48px 60px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'center' }}>
+        {/* Left */}
+        <div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#FFF5E0', border: '1.5px solid #F4A832', borderRadius: '50px', padding: '6px 18px', fontSize: '0.78rem', fontWeight: 800, color: '#D4881A', marginBottom: '24px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            🎁 Perfect gift for kids
+          </div>
+          <h1 className="fredoka" style={{ fontSize: 'clamp(2.2rem, 4vw, 3.4rem)', color: '#2D1B00', lineHeight: 1.1, marginBottom: '20px' }}>
+            The most personal gift you can give a child
+          </h1>
+          <p style={{ fontSize: '1.1rem', color: '#5C3D1E', lineHeight: 1.7, fontWeight: 600, marginBottom: '32px', maxWidth: '460px' }}>
+            A professionally illustrated storybook where <strong>your child is the hero</strong> — crafted by AI in minutes, delivered to your door or inbox.
+          </p>
+          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '32px' }}>
+            <Link href="/create" className="btn-primary fredoka" style={{ padding: '16px 36px', borderRadius: '50px', fontSize: '1.2rem', textDecoration: 'none', boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
+              Create Their Story ✨
+            </Link>
+            <a href="#how-it-works" className="btn-secondary" style={{ padding: '15px 24px', borderRadius: '50px', fontSize: '0.95rem', fontWeight: 700, textDecoration: 'none' }}>
+              See how it works →
+            </a>
+          </div>
+          {/* Social proof */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex' }}>
+              {['👩', '👴', '👨', '👵'].map((emoji, i) => (
+                <div key={i} style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#F5E6C8', border: '2px solid #FFF8EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', marginLeft: i === 0 ? 0 : '-8px' }}>{emoji}</div>
+              ))}
+            </div>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#5C3D1E' }}>2,400+ families gifted a story this month</span>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-2">
-            {[1, 2, 3].map(s => (
-              <div key={s} className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                  s < step ? 'bg-green-500 text-white' :
-                  s === step ? 'bg-amber-500 text-white' :
-                  'bg-amber-100 text-amber-400'
-                }`}>
-                  {s < step ? '✓' : s}
+        {/* Right — Book grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {[
+            { emoji: '🐉', title: "Aria's Dragon Quest", bg: '#FFF0D0', theme: 'Royal Kingdom' },
+            { emoji: '🚀', title: "Rohan's Space Trip", bg: '#E8F5FF', theme: 'Space Explorer' },
+            { emoji: '🦄', title: "Mia's Magic Forest", bg: '#F0FFE8', theme: 'Enchanted Forest' },
+            { emoji: '🌊', title: "Arjun Under the Sea", bg: '#E8F5FF', theme: 'Ocean Adventure' },
+          ].map((book, i) => (
+            <div key={i} className="book-card" style={{ background: 'white', borderRadius: '16px', padding: '16px 12px 14px', textAlign: 'center', boxShadow: '0 4px 20px rgba(45,27,0,0.1)', border: '2px solid #F5E6C8', transition: 'transform 0.25s', cursor: 'pointer' }}>
+              <div style={{ width: '100%', height: '90px', borderRadius: '10px', background: book.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.8rem', marginBottom: '10px' }}>{book.emoji}</div>
+              <div style={{ fontFamily: "'Fredoka One', cursive", fontSize: '0.85rem', color: '#2D1B00', lineHeight: 1.3, marginBottom: '4px' }}>{book.title}</div>
+              <div style={{ fontSize: '0.7rem', color: '#9E8060' }}>{book.theme}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* TRUST STRIP */}
+      <div style={{ background: 'white', borderTop: '1.5px solid #F5E6C8', borderBottom: '1.5px solid #F5E6C8', padding: '20px 48px', display: 'flex', justifyContent: 'center', gap: '48px', flexWrap: 'wrap' }}>
+        {[
+          { icon: '🎨', text: 'AI illustrated' },
+          { icon: '⚡', text: 'Ready in minutes' },
+          { icon: '📦', text: 'Print & ship available' },
+          { icon: '💝', text: '100% happiness guarantee' },
+          { icon: '🇮🇳', text: 'Indian stories & settings' },
+        ].map(({ icon, text }, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.88rem', fontWeight: 700, color: '#5C3D1E' }}>
+            <span style={{ fontSize: '1.2rem' }}>{icon}</span>{text}
+          </div>
+        ))}
+      </div>
+
+      {/* HOW IT WORKS */}
+      <section id="how-it-works" style={{ maxWidth: '1000px', margin: '0 auto', padding: '80px 48px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '52px' }}>
+          <h2 className="fredoka" style={{ fontSize: '2.2rem', color: '#2D1B00', marginBottom: '10px' }}>How the magic happens ✨</h2>
+          <p style={{ color: '#5C3D1E', fontSize: '1rem', fontWeight: 600 }}>Three simple steps — takes under 3 minutes</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+          {[
+            { num: '1', emoji: '🧒', title: 'Tell us about them', desc: 'Name, age, photo and their favourite things' },
+            { num: '2', emoji: '💛', title: 'Pick their passions', desc: 'Dinosaurs, space, unicorns — we weave them in' },
+            { num: '3', emoji: '🎨', title: 'Choose a theme', desc: 'Adventure, fantasy, ocean — pick their world' },
+            { num: '4', emoji: '📬', title: 'Receive the book', desc: 'PDF in minutes or printed hardcover at your door' },
+          ].map((step, i) => (
+            <div key={i} className="step-card" style={{ background: 'white', borderRadius: '20px', padding: '24px 20px', textAlign: 'center', border: '2px solid #F5E6C8', transition: 'all 0.25s', cursor: 'default' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#FFF5E0', border: '2px solid #F5E6C8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem', margin: '0 auto 14px' }}>{step.emoji}</div>
+              <div className="fredoka" style={{ fontSize: '1rem', color: '#2D1B00', marginBottom: '6px' }}>{step.title}</div>
+              <div style={{ fontSize: '0.82rem', color: '#5C3D1E', lineHeight: 1.5 }}>{step.desc}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: '40px' }}>
+          <Link href="/create" className="btn-primary fredoka" style={{ padding: '16px 40px', borderRadius: '50px', fontSize: '1.2rem', textDecoration: 'none', boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
+            Create Their Story ✨
+          </Link>
+        </div>
+      </section>
+
+      {/* SAMPLE STORIES */}
+      <section style={{ background: 'white', borderTop: '1.5px solid #F5E6C8', borderBottom: '1.5px solid #F5E6C8', padding: '80px 48px' }}>
+        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+            <h2 className="fredoka" style={{ fontSize: '2.2rem', color: '#2D1B00', marginBottom: '10px' }}>Stories families love 📖</h2>
+            <p style={{ color: '#5C3D1E', fontSize: '1rem', fontWeight: 600 }}>Every story is unique — just like your child</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+            {[
+              { emoji: '🐉', title: "Aria and the Dragon's Secret", theme: 'Royal Kingdom', age: '6 years', interests: 'Dragons, Art', bg: '#FFF0D0', text: "In the golden city of Jaipur, young Aria discovered a tiny dragon hiding behind the marigold garlands of the old haveli..." },
+              { emoji: '🚀', title: "Rohan's Trip to the Stars", theme: 'Space Explorer', age: '8 years', interests: 'Space, Science', bg: '#E8F5FF', text: "On the rooftop of their Mumbai apartment, Rohan pointed his telescope at the night sky and gasped — a spaceship was waiting for him..." },
+              { emoji: '🦄', title: "Mia's Enchanted Forest", theme: 'Enchanted Forest', age: '4 years', interests: 'Unicorns, Music', bg: '#F0FFE8', text: "Deep in the forest behind her dadi's village, little Mia heard a melody that only she could follow. The trees parted, and there she was..." },
+            ].map((story, i) => (
+              <div key={i} style={{ borderRadius: '20px', overflow: 'hidden', border: '2px solid #F5E6C8', background: '#FFFDF8' }}>
+                <div style={{ height: '120px', background: story.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3.5rem' }}>{story.emoji}</div>
+                <div style={{ padding: '20px' }}>
+                  <div className="fredoka" style={{ fontSize: '1.05rem', color: '#2D1B00', marginBottom: '8px' }}>{story.title}</div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '0.7rem', background: '#FFF5E0', color: '#D4881A', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>{story.theme}</span>
+                    <span style={{ fontSize: '0.7rem', background: '#F5E6C8', color: '#5C3D1E', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>{story.age}</span>
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: '#5C3D1E', lineHeight: 1.6, fontStyle: 'italic' }}>&ldquo;{story.text}&rdquo;</p>
                 </div>
-                {s < 3 && <div className={`w-8 h-0.5 ${s < step ? 'bg-green-400' : 'bg-amber-200'}`} />}
               </div>
             ))}
           </div>
-        )}
-      </nav>
-
-      <div className="max-w-2xl mx-auto px-4 py-8">
-
-        {/* STEP 1 — ABOUT */}
-        {step === 1 && (
-          <div className="step-enter">
-            <div className="text-center mb-8">
-              <div className="text-4xl mb-3">🧒</div>
-              <h1 className="fredoka text-3xl text-amber-900 mb-2">About the Star of the Story</h1>
-              <p className="text-amber-700">Tell us about the child — this is how we make it personal.</p>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm space-y-5">
-
-              <div>
-                <label className="text-sm font-800 text-amber-800 block mb-1.5 font-bold uppercase tracking-wide text-xs">Child&apos;s Name *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Aria"
-                  value={formData.childName}
-                  onChange={e => setFormData({ ...formData, childName: e.target.value })}
-                  className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">Age *</label>
-                  <select
-                    value={formData.age}
-                    onChange={e => setFormData({ ...formData, age: e.target.value })}
-                    className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
-                  >
-                    <option value="">Select age...</option>
-                    <option>2-3 years</option>
-                    <option>4-5 years</option>
-                    <option>6-7 years</option>
-                    <option>8-10 years</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">They are a... *</label>
-                  <select
-                    value={formData.gender}
-                    onChange={e => setFormData({ ...formData, gender: e.target.value })}
-                    className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
-                  >
-                    <option value="">Select...</option>
-                    <option>Girl</option>
-                    <option>Boy</option>
-                    <option>Keep it neutral</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">Nickname or fun detail (optional)</label>
-                <input
-                  type="text"
-                  placeholder='e.g. "Loves her red shoes" or "Calls himself Captain Rohan"'
-                  value={formData.nickname}
-                  onChange={e => setFormData({ ...formData, nickname: e.target.value })}
-                  className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
-                />
-              </div>
-
-              <div>
-  <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">
-    Your Email *
-  </label>
-  <input
-    type="email"
-    placeholder="we'll send the storybook here"
-    value={formData.email}
-    onChange={e => setFormData({ ...formData, email: e.target.value })}
-    className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
-  />
-</div>
-
-              <div>
-                <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">Personal dedication (optional)</label>
-                <textarea
-                  rows={2}
-                  placeholder='"To my little star — may every dream come true. Love, Grandma"'
-                  value={formData.dedication}
-                  onChange={e => setFormData({ ...formData, dedication: e.target.value })}
-                  className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50 resize-none"
-                />
-              </div>
-
-              <button
-                onClick={() => setStep(2)}
-                disabled={!canProceedStep1}
-                className={`w-full py-4 rounded-xl fredoka text-lg ${canProceedStep1 ? 'btn-secondary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
-              >
-                Pick Their Interests →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2 — INTERESTS */}
-        {step === 2 && (
-          <div className="step-enter">
-            <div className="text-center mb-8">
-              <div className="text-4xl mb-3">💛</div>
-              <h1 className="fredoka text-3xl text-amber-900 mb-2">What Does {formData.childName} Love?</h1>
-              <p className="text-amber-700">Pick up to 4 interests — we&apos;ll weave them into every page.</p>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm space-y-6">
-
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-xs font-bold text-amber-800 uppercase tracking-wide">Interests ({formData.interests.length}/4)</label>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {INTERESTS.map(({ label, emoji }) => (
-                    <button
-                      key={label}
-                      onClick={() => toggleInterest(label)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-full border-2 text-sm font-semibold transition-all ${
-                        formData.interests.includes(label)
-                          ? 'chip-sel border-amber-400'
-                          : 'border-amber-200 text-amber-700 hover:border-amber-300 bg-amber-50'
-                      }`}
-                    >
-                      <span>{emoji}</span> {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Story Length</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {LENGTHS.map(({ label, emoji, pages, value }) => (
-                    <button
-                      key={value}
-                      onClick={() => setFormData({ ...formData, storyLength: value })}
-                      className={`p-4 rounded-xl border-2 text-center transition-all ${
-                        formData.storyLength === value
-                          ? 'border-sky-400 bg-sky-50'
-                          : 'border-amber-200 bg-amber-50 hover:border-amber-300'
-                      }`}
-                    >
-                      <div className="text-2xl mb-1">{emoji}</div>
-                      <div className="font-bold text-amber-900 text-sm">{label}</div>
-                      <div className="text-xs text-amber-600">{pages}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setStep(1)}
-                  className="px-6 py-3 rounded-xl border-2 border-amber-200 text-amber-700 font-bold hover:bg-amber-50 transition-all"
-                >
-                  ← Back
-                </button>
-                <button
-                  onClick={() => setStep(3)}
-                  disabled={!canProceedStep2}
-                  className={`flex-1 py-3 rounded-xl fredoka text-lg ${canProceedStep2 ? 'btn-secondary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
-                >
-                  Choose Theme →
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3 — THEME + DELIVERY */}
-        {step === 3 && (
-          <div className="step-enter">
-            <div className="text-center mb-8">
-              <div className="text-4xl mb-3">🎨</div>
-              <h1 className="fredoka text-3xl text-amber-900 mb-2">Pick the Story World</h1>
-              <p className="text-amber-700">Choose a theme and how you&apos;d like to receive the book.</p>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm space-y-6">
-
-              <div>
-                <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Story Theme *</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {THEMES.map(({ label, emoji, desc }) => (
-                    <button
-                      key={label}
-                      onClick={() => setFormData({ ...formData, theme: label })}
-                      className={`p-4 rounded-xl border-2 text-left transition-all relative ${
-                        formData.theme === label ? 'theme-sel' : 'border-amber-200 bg-amber-50 hover:border-amber-300'
-                      }`}
-                    >
-                      {formData.theme === label && (
-                        <span className="absolute top-2 right-2 w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center text-white text-xs">✓</span>
-                      )}
-                      <div className="text-2xl mb-1">{emoji}</div>
-                      <div className="font-bold text-amber-900 text-sm">{label}</div>
-                      <div className="text-xs text-amber-600">{desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Delivery</label>
-                <div className="space-y-2">
-                  {DELIVERY.map(({ label, emoji, desc, price, value }) => (
-                    <button
-                      key={value}
-                      onClick={() => setFormData({ ...formData, deliveryType: value })}
-                      className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${
-                        formData.deliveryType === value ? 'delivery-sel' : 'border-amber-200 bg-amber-50 hover:border-amber-300'
-                      }`}
-                    >
-                      <span className="text-2xl">{emoji}</span>
-                      <div className="flex-1">
-                        <div className="font-bold text-amber-900">{label}</div>
-                        <div className="text-xs text-amber-600">{desc}</div>
-                      </div>
-                      <div className="fredoka text-lg text-green-600">{price}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* ORDER SUMMARY */}
-              <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-                <div className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-3">Order Summary</div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-amber-600">Hero</span><span className="font-bold text-amber-900">{formData.childName}, {formData.age}</span></div>
-                  <div className="flex justify-between"><span className="text-amber-600">Interests</span><span className="font-bold text-amber-900">{formData.interests.join(', ') || '—'}</span></div>
-                  <div className="flex justify-between"><span className="text-amber-600">Theme</span><span className="font-bold text-amber-900">{formData.theme || '—'}</span></div>
-                  <div className="flex justify-between"><span className="text-amber-600">Length</span><span className="font-bold text-amber-900">{formData.storyLength} pages</span></div>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setStep(2)}
-                  className="px-6 py-3 rounded-xl border-2 border-amber-200 text-amber-700 font-bold hover:bg-amber-50 transition-all"
-                >
-                  ← Back
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={!canProceedStep3}
-                  className={`flex-1 py-3 rounded-xl fredoka text-lg ${canProceedStep3 ? 'btn-primary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
-                >
-                  ✨ Create My Story!
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 4 — GENERATING / RESULT */}
-        {step === 4 && (
-          <div className="step-enter">
-            {status === 'generating' && (
-              <div className="text-center py-16">
-                <div className="text-6xl mb-6 pulse">🪄</div>
-                <h2 className="fredoka text-3xl text-amber-900 mb-3">Creating {formData.childName}&apos;s Story...</h2>
-                <p className="text-amber-700 mb-2">Our illustrators are working their magic!</p>
-                <p className="text-amber-500 text-sm">This takes about 30-40 seconds</p>
-                <div className="mt-8 flex justify-center gap-2">
-                  {['Writing story...', 'Drawing illustrations...', 'Adding magic...'].map((msg, i) => (
-                    <div key={i} className="px-3 py-1 bg-amber-100 rounded-full text-xs text-amber-700" style={{ animationDelay: `${i * 0.5}s` }}>{msg}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {status === 'complete' && story && (
-  <PageFlipBook
-  title={story.title}
-  pages={story.pages}
-  illustrations={illustrations}
-  childName={formData.childName}
-  dedication={formData.dedication}
-  customerEmail={formData.email}
-  onRestart={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); }}
-/>
-)}
-
-            {status === 'error' && (
-              <div className="text-center py-16">
-                <div className="text-5xl mb-4">😔</div>
-                <h2 className="fredoka text-2xl text-amber-900 mb-3">Something went wrong</h2>
-                <p className="text-amber-700 mb-6">Please try again</p>
-                <button
-                  onClick={() => { setStep(1); setStatus(''); }}
-                  className="px-8 py-3 rounded-xl fredoka text-lg btn-secondary"
-                >
-                  Try Again
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </main>
-  )
-}
-
-function PageFlipBook({
-  title,
-  pages,
-  illustrations,
-  childName,
-  dedication,
-  customerEmail,
-  onRestart,
-}: {
-  title: string
-  pages: StoryPage[]
-  illustrations: string[]
-  childName: string
-  dedication: string
-  customerEmail: string
-  onRestart: () => void
-}) {
-  const [downloading, setDownloading] = useState(false)
-
-  const handleDownloadPDF = async () => {
-  setDownloading(true)
-  try {
-    const response = await fetch('/api/generate-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title,
-        pages,
-        illustrations,
-        childName,
-        dedication,
-        orderId: Date.now().toString(),
-      }),
-    })
-
-    const data = await response.json()
-
-    if (data.success && data.pdfUrl) {
-      // Open PDF in new tab
-      window.open(data.pdfUrl, '_blank')
-
-      // Send email with real Supabase URL
-      await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: customerEmail,
-          childName,
-          title,
-          downloadUrl: data.pdfUrl,
-        }),
-      })
-    }
-  } catch (error) {
-    console.log('Download error:', error)
-  }
-  setDownloading(false)
-}
-  const [current, setCurrent] = useState(0)
-  const [direction, setDirection] = useState<'next' | 'prev'>('next')
-  const [animating, setAnimating] = useState(false)
-
-  const goTo = (index: number, dir: 'next' | 'prev') => {
-    if (animating) return
-    setDirection(dir)
-    setAnimating(true)
-    setTimeout(() => {
-      setCurrent(index)
-      setAnimating(false)
-    }, 350)
-  }
-
-  const next = () => {
-    if (current < pages.length - 1) goTo(current + 1, 'next')
-  }
-
-  const prev = () => {
-    if (current > 0) goTo(current - 1, 'prev')
-  }
-
-  return (
-    <div>
-      <style>{`
-        .page-exit-next { animation: exitLeft 0.35s ease forwards; }
-        .page-exit-prev { animation: exitRight 0.35s ease forwards; }
-        .page-enter-next { animation: enterRight 0.35s ease forwards; }
-        .page-enter-prev { animation: enterLeft 0.35s ease forwards; }
-
-        @keyframes exitLeft {
-          from { opacity: 1; transform: translateX(0) rotateY(0deg); }
-          to { opacity: 0; transform: translateX(-60px) rotateY(15deg); }
-        }
-        @keyframes exitRight {
-          from { opacity: 1; transform: translateX(0) rotateY(0deg); }
-          to { opacity: 0; transform: translateX(60px) rotateY(-15deg); }
-        }
-        @keyframes enterRight {
-          from { opacity: 0; transform: translateX(60px) rotateY(-15deg); }
-          to { opacity: 1; transform: translateX(0) rotateY(0deg); }
-        }
-        @keyframes enterLeft {
-          from { opacity: 0; transform: translateX(-60px) rotateY(15deg); }
-          to { opacity: 1; transform: translateX(0) rotateY(0deg); }
-        }
-      `}</style>
-
-      {/* Book title */}
-      <div className="text-center mb-6">
-        <div className="text-3xl mb-2">📖</div>
-        <h2 className="fredoka text-2xl text-amber-900">{title}</h2>
-        <p className="text-amber-600 text-sm mt-1">
-          A personalized story for {childName}
-        </p>
-      </div>
-
-      {/* Page card */}
-      <div
-        className={`bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-md ${
-          animating
-            ? direction === 'next'
-              ? 'page-exit-next'
-              : 'page-exit-prev'
-            : direction === 'next'
-            ? 'page-enter-next'
-            : 'page-enter-prev'
-        }`}
-        style={{ perspective: '1000px' }}
-      >
-        {/* Illustration */}
-        {illustrations[current] ? (
-          <img
-            src={illustrations[current]}
-            alt={`Page ${pages[current].page}`}
-            className="w-full h-64 object-cover"
-          />
-        ) : (
-          <div className="w-full h-64 bg-amber-100 flex items-center justify-center text-4xl">
-            📖
-          </div>
-        )}
-
-        {/* Story text */}
-        <div className="p-6">
-          <div className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">
-            Page {pages[current].page} of {pages.length}
-          </div>
-          <p className="text-amber-900 leading-relaxed text-lg">
-            {pages[current].text}
-          </p>
         </div>
-      </div>
+      </section>
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between mt-6">
-        <button
-          onClick={prev}
-          disabled={current === 0}
-          className={`px-6 py-3 rounded-xl border-2 font-bold transition-all ${
-            current === 0
-              ? 'border-amber-100 text-amber-300 cursor-not-allowed'
-              : 'border-amber-300 text-amber-700 hover:bg-amber-50'
-          }`}
-        >
-          ← Prev
-        </button>
-
-        {/* Dot indicators */}
-        <div className="flex gap-2">
-          {pages.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => goTo(i, i > current ? 'next' : 'prev')}
-              className={`rounded-full transition-all ${
-                i === current
-                  ? 'w-6 h-3 bg-amber-500'
-                  : 'w-3 h-3 bg-amber-200 hover:bg-amber-300'
-              }`}
-            />
+      {/* PRICING */}
+      <section id="pricing" style={{ maxWidth: '900px', margin: '0 auto', padding: '80px 48px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+          <h2 className="fredoka" style={{ fontSize: '2.2rem', color: '#2D1B00', marginBottom: '10px' }}>Simple, honest pricing 💰</h2>
+          <p style={{ color: '#5C3D1E', fontSize: '1rem', fontWeight: 600 }}>No subscription. Pay once, keep forever.</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+          {[
+            { name: 'Digital PDF', price: '₹299', desc: 'Download instantly. Read on any device.', features: ['Personalized story', 'AI illustrations', 'PDF download', 'Email delivery'], popular: false, color: '#F5E6C8', accent: '#D4881A' },
+            { name: 'Printed Hardcover', price: '₹1,199', desc: 'Premium full-color book delivered to your door.', features: ['Everything in Digital', 'Hardcover print', 'Ships in 5-7 days', 'Gift ready'], popular: true, color: '#F4867A', accent: 'white' },
+            { name: 'Both', price: '₹1,399', desc: 'Best value — PDF now, hardcover later.', features: ['Everything included', 'PDF instantly', 'Hardcover shipped', 'Best value'], popular: false, color: '#F5E6C8', accent: '#D4881A' },
+          ].map((plan, i) => (
+            <div key={i} className="pricing-card" style={{ borderRadius: '20px', overflow: 'hidden', border: plan.popular ? '3px solid #F4867A' : '2px solid #F5E6C8', background: plan.popular ? '#FFF0EE' : 'white', transition: 'all 0.25s', position: 'relative' }}>
+              {plan.popular && (
+                <div style={{ background: '#F4867A', color: 'white', textAlign: 'center', padding: '6px', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Most Popular
+                </div>
+              )}
+              <div style={{ padding: '24px' }}>
+                <div className="fredoka" style={{ fontSize: '1.3rem', color: '#2D1B00', marginBottom: '4px' }}>{plan.name}</div>
+                <div className="fredoka" style={{ fontSize: '2.2rem', color: plan.popular ? '#F4867A' : '#D4881A', marginBottom: '8px' }}>{plan.price}</div>
+                <div style={{ fontSize: '0.82rem', color: '#5C3D1E', marginBottom: '20px', lineHeight: 1.5 }}>{plan.desc}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                  {plan.features.map((f, fi) => (
+                    <div key={fi} style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.85rem', color: '#5C3D1E' }}>
+                      <span style={{ color: '#6BAF8D', fontWeight: 900 }}>✓</span>{f}
+                    </div>
+                  ))}
+                </div>
+                <Link href="/create" style={{ display: 'block', textAlign: 'center', padding: '12px', borderRadius: '50px', fontFamily: "'Fredoka One', cursive", fontSize: '1rem', textDecoration: 'none', background: plan.popular ? 'linear-gradient(135deg, #F4867A, #D9604F)' : '#FFF5E0', color: plan.popular ? 'white' : '#D4881A', border: plan.popular ? 'none' : '2px solid #F4A832', boxShadow: plan.popular ? '0 4px 14px rgba(244,134,122,0.35)' : 'none' }}>
+                  Get Started ✨
+                </Link>
+              </div>
+            </div>
           ))}
         </div>
+      </section>
 
-        <button
-          onClick={next}
-          disabled={current === pages.length - 1}
-          className={`px-6 py-3 rounded-xl font-bold transition-all ${
-            current === pages.length - 1
-              ? 'bg-amber-100 text-amber-300 cursor-not-allowed'
-              : 'btn-secondary cursor-pointer'
-          }`}
-        >
-          Next →
-        </button>
-      </div>
+      {/* FINAL CTA */}
+      <section style={{ background: '#2D1B00', padding: '80px 48px', textAlign: 'center' }}>
+        <div className="float" style={{ fontSize: '3rem', marginBottom: '20px' }}>📖</div>
+        <h2 className="fredoka" style={{ fontSize: '2.4rem', color: 'white', marginBottom: '14px' }}>
+          Give them a story they&apos;ll never forget
+        </h2>
+        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '1rem', fontWeight: 600, marginBottom: '32px', maxWidth: '480px', margin: '0 auto 32px' }}>
+          Join thousands of parents and grandparents who have gifted a personalized storybook.
+        </p>
+        <Link href="/create" style={{ display: 'inline-block', background: '#F4A832', color: '#2D1B00', padding: '18px 48px', borderRadius: '50px', fontFamily: "'Fredoka One', cursive", fontSize: '1.3rem', textDecoration: 'none', boxShadow: '0 6px 24px rgba(244,168,50,0.4)' }}>
+          Create Their Story ✨
+        </Link>
+      </section>
 
-      {/* Bottom actions */}
-      <div className="flex gap-3 mt-6">
-        <button
-          onClick={onRestart}
-          className="flex-1 py-3 rounded-xl border-2 border-amber-300 text-amber-700 font-bold hover:bg-amber-50 transition-all"
-        >
-          Create Another
-        </button>
-        <button
-  onClick={handleDownloadPDF}
-  disabled={downloading}
-  className={`flex-1 py-3 rounded-xl fredoka text-lg ${downloading ? 'bg-amber-200 text-amber-400 cursor-not-allowed' : 'btn-secondary cursor-pointer'}`}
->
-  {downloading ? 'Generating PDF...' : 'Download PDF 📄'}
-</button>
-      </div>
-    </div>
+      {/* FOOTER */}
+      <footer style={{ background: '#1A0A00', padding: '28px 48px', textAlign: 'center', fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
+        Made with ❤️ for little dreamers everywhere · © 2025 StoryTales
+      </footer>
+    </main>
   )
 }
