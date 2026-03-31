@@ -177,8 +177,8 @@ export default function Home() {
         <button
           onClick={async () => {
             await supabase.auth.signOut()
-            router.push('/login')
-          }}
+            router.push('/')
+}}
           className="text-xs font-bold text-amber-600 border border-amber-200 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-all"
         >
           Sign Out

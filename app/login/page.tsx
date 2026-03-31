@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -47,10 +48,13 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">📖</div>
-          <h1 className="fredoka text-4xl text-amber-900">StoryTales</h1>
-          <p className="text-amber-700 mt-2">Sign in to create personalized storybooks</p>
-        </div>
+          <Link href="/" className="text-amber-500 text-sm font-bold hover:text-amber-700 flex items-center justify-center gap-1 mb-4">
+            ← Back to home
+          </Link>
+  <div className="text-5xl mb-3">📖</div>
+  <h1 className="fredoka text-4xl text-amber-900">StoryTales</h1>
+  <p className="text-amber-700 mt-2">Sign in to create personalized storybooks</p>
+</div>
 
         <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-8">
 
