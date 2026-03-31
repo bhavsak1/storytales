@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
 
 interface StoryPage {
   page: number
@@ -66,6 +70,8 @@ export default function Home() {
   const [status, setStatus] = useState('')
   const [story, setStory] = useState<{ title: string; pages: StoryPage[] } | null>(null)
   const [illustrations, setIllustrations] = useState<string[]>([])
+  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
   const [formData, setFormData] = useState<FormData>({
     childName: '',
     age: '',
@@ -78,6 +84,18 @@ export default function Home() {
     nickname: '',
     email: '',
   })
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+      } else {
+        setUser(user)
+      }
+    }
+    getUser()
+  }, [router])
 
   const toggleInterest = (interest: string) => {
     const current = formData.interests
@@ -141,8 +159,36 @@ export default function Home() {
 
       {/* NAV */}
       <nav className="bg-white border-b border-amber-100 px-6 py-4 flex items-center justify-between">
-        <div className="fredoka text-2xl text-amber-900">📖 StoryTales</div>
-        {step < 4 && (
+  <div className="fredoka text-2xl text-amber-900">📖 StoryTales</div>
+  
+  <div className="flex items-center gap-3">
+    {user && (
+      <>
+        <span className="text-sm text-amber-700 font-semibold hidden sm:block">
+          {user.user_metadata?.full_name || user.email}
+        </span>
+        {user.user_metadata?.avatar_url && (
+          <img
+            src={user.user_metadata.avatar_url}
+            alt="Profile"
+            className="w-8 h-8 rounded-full border-2 border-amber-200"
+          />
+        )}
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut()
+            router.push('/login')
+          }}
+          className="text-xs font-bold text-amber-600 border border-amber-200 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-all"
+        >
+          Sign Out
+        </button>
+      </>
+    )}
+  </div>
+
+  {step < 4 && (
+
           <div className="flex items-center gap-2">
             {[1, 2, 3].map(s => (
               <div key={s} className="flex items-center gap-2">
