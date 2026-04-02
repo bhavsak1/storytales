@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
+import Link from 'next/link'
 
 interface StoryPage {
   page: number
@@ -162,11 +163,14 @@ export default function Home() {
   <div className="fredoka text-2xl text-amber-900">📖 StoryTales</div>
   
   <div className="flex items-center gap-3">
-    {user && (
-      <>
-        <span className="text-sm text-amber-700 font-semibold hidden sm:block">
-          {user.user_metadata?.full_name || user.email}
-        </span>
+  {user && (
+    <>
+      <Link href="/orders" className="text-sm font-bold text-amber-700 hover:text-amber-900 no-underline hidden sm:block">
+        My Orders
+      </Link>
+      <span className="text-sm text-amber-700 font-semibold hidden sm:block">
+        {user.user_metadata?.full_name || user.email}
+      </span>
         {user.user_metadata?.avatar_url && (
           <img
             src={user.user_metadata.avatar_url}
