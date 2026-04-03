@@ -51,9 +51,11 @@ export default function LoginPage() {
           <Link href="/" className="text-amber-500 text-sm font-bold hover:text-amber-700 flex items-center justify-center gap-1 mb-4">
             ← Back to home
           </Link>
-  <div className="text-5xl mb-3">📖</div>
-  <h1 className="fredoka text-4xl text-amber-900">StoryTales</h1>
-  <p className="text-amber-700 mt-2">Sign in to create personalized storybooks</p>
+  <div className="flex items-center justify-center gap-2 mb-2">
+  <img src="/logo.jpg" alt="StoryGennie" className="h-14 w-auto" />
+</div>
+<h1 className="fredoka text-4xl text-amber-900">StoryGennie</h1>
+<p className="text-amber-700 mt-2">Sign in to create personalized storybooks</p>
 </div>
 
         <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-8">
