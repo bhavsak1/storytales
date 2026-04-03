@@ -110,6 +110,7 @@ export default function Home() {
   const handleSubmit = async () => {
     setStatus('generating')
     setStep(4)
+    console.log('Sending user ID:', user?.id)
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -121,6 +122,7 @@ export default function Home() {
           theme: formData.theme,
           storyLength: formData.storyLength,
           dedication: formData.dedication,
+          userId: user?.id,
         }),
       })
       const data = await response.json()
