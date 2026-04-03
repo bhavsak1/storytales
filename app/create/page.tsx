@@ -162,7 +162,10 @@ export default function Home() {
 
       {/* NAV */}
       <nav className="bg-white border-b border-amber-100 px-6 py-4 flex items-center justify-between">
-  <div className="fredoka text-2xl text-amber-900">📖 StoryTales</div>
+  <div className="flex items-center gap-2">
+  <img src="/logo.jpg" alt="StoryGennie" className="h-15 w-auto" />
+  <span className="fredoka text-xl md:text-2xl text-amber-900">StoryGennie</span>
+</div>
   
   <div className="flex items-center gap-3">
   {user && (

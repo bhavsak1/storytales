@@ -55,7 +55,10 @@ export default function LandingPage() {
 
       {/* NAV */}
       <nav className="bg-white bg-opacity-95 border-b border-amber-100 sticky top-0 z-50 px-5 md:px-10 lg:px-16 py-4 flex items-center justify-between">
-        <div className="fredoka text-xl md:text-2xl text-amber-900">📖 StoryTales</div>
+        <div className="flex items-center gap-2">
+        <img src="/logo.jpg" alt="StoryGennie" className="h-15 w-auto" />
+        <span className="fredoka text-xl md:text-2xl text-amber-900">StoryGennie</span>
+        </div>
         <div className="hidden md:flex items-center gap-6">
           <a href="#how-it-works" className="text-sm font-bold text-amber-800 hover:text-amber-600 no-underline">How it works</a>
           <a href="#pricing" className="text-sm font-bold text-amber-800 hover:text-amber-600 no-underline">Pricing</a>

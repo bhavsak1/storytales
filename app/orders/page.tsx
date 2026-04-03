@@ -99,9 +99,10 @@ export default function OrdersPage() {
 
       {/* NAV */}
       <nav className="bg-white border-b border-amber-100 px-5 md:px-10 py-4 flex items-center justify-between sticky top-0 z-50">
-        <Link href="/" className="fredoka text-xl md:text-2xl text-amber-900 no-underline">
-          📖 StoryTales
-        </Link>
+        <Link href="/" className="no-underline flex items-center gap-2">
+  <img src="/logo.jpg" alt="StoryGennie" className="h-15 w-auto" />
+  <span className="fredoka text-xl md:text-2xl text-amber-900">StoryGennie</span>
+</Link>
         <div className="flex items-center gap-3">
           {user && (
             <>
