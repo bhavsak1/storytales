@@ -12,10 +12,13 @@ const anthropic = new Anthropic()
 
 export async function POST(request: Request) {
   try {
-    const { childName, age, interests, theme, storyLength, dedication, userId } = await request.json()
+    const { childName, age, interests, theme, storyLength, dedication, userId, photoUrl } = await request.json()
     console.log('User ID received:', userId)  
+    console.log('Photo URL received:', photoUrl)
+    console.log('Photo URL received:', photoUrl)
+console.log('Using model:', photoUrl ? 'wan/v2.6/image-to-image' : 'fal-ai/flux/schnell')
 
-    // Step 1: Save order to Supabase
+    // Step 1: Save order to Supabaseprompt: `Children's storybook
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -99,18 +102,31 @@ const { fal } = await import('@fal-ai/client')
 fal.config({ credentials: process.env.FAL_KEY })
 
 const imagePromises = story.pages.map((page: StoryPage) =>
-  fal.subscribe('fal-ai/flux/schnell', {
-    input: {
-      prompt: ` A soft watercolor and colored pencil storybook illustration. 
-      The medium features gentle pencil sketched outlines, warm, blended wash colors, and a nostalgic, cozy atmosphere typical of children's literature from India. 
-      Authentic traditional Indian architecture, furniture, and clothing are featured throughout.
-      Whimsical, cozy, Sudha Murthy book style,professional children's book quality. ${page.scene}.
-      Keep character consistency with this description: ${story.character.description} and style: ${story.character.style}
-      `,
+  fal.subscribe(
+  photoUrl ? 'wan/v2.6/image-to-image' : 'fal-ai/flux/schnell',
+  {
+    input: photoUrl ? {
+      prompt: `Children's storybook illustration, watercolor style,
+      soft warm lighting, pastel colors.
+      Main character: ${page.scene}.
+      The child must look exactly like the reference avatar.
+      Keep face, hair color, eye color and skin tone identical to avatar.
+      Set in India with warm Indian cultural elements.
+      Whimsical, cozy, professional children's book quality.
+      No text, no borders.`,
+      image_urls: [photoUrl],
+      negative_prompt: 'inconsistent character, different face, realistic photo, text, watermark',
+      num_images: 1,
+    } : {
+      prompt: `Children's storybook illustration, watercolor style,
+      soft warm lighting, pastel colors. ${page.scene}.
+      Set in India with warm Indian cultural elements.
+      Whimsical, cozy, professional children's book quality.`,
       image_size: 'landscape_4_3',
       num_inference_steps: 4,
     }
-  })
+  }
+)
 )
 const imageResults = await Promise.all(imagePromises)
 const illustrations = imageResults.map((r: { data: { images: { url: string }[] } }) => r.data.images[0].url)
@@ -141,101 +157,25 @@ await supabase
   .eq('id', order.id)
 
 // Auto-generate and save PDF
+// Auto-generate PDF
 try {
-  const { jsPDF } = await import('jspdf')
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-
-  // Cover page
-  doc.setFillColor(255, 248, 238)
-  doc.rect(0, 0, pageWidth, pageHeight, 'F')
-  doc.setTextColor(45, 27, 0)
-  doc.setFontSize(28)
-  doc.setFont('helvetica', 'bold')
-  const titleLines = doc.splitTextToSize(story.title, pageWidth - 40)
-  doc.text(titleLines, pageWidth / 2, 80, { align: 'center' })
-  doc.setFontSize(16)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(92, 61, 30)
-  doc.text(`A personalized story for ${childName}`, pageWidth / 2, 120, { align: 'center' })
-  doc.setFontSize(12)
-  doc.setTextColor(244, 168, 50)
-  doc.text('Created with StoryTales', pageWidth / 2, 140, { align: 'center' })
-
-  // Story pages
-  for (const page of story.pages) {
-    doc.addPage()
-    doc.setFillColor(255, 248, 238)
-    doc.rect(0, 0, pageWidth, pageHeight, 'F')
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(244, 168, 50)
-    doc.text(`Page ${page.page} of ${story.pages.length}`, pageWidth / 2, 12, { align: 'center' })
-
-    // Try to embed illustration
-    const imageUrl = illustrations[page.page - 1]
-    if (imageUrl) {
-      try {
-        const imageResponse = await fetch(imageUrl)
-        const imageBuffer = await imageResponse.arrayBuffer()
-        const base64 = Buffer.from(imageBuffer).toString('base64')
-        const imageData = `data:image/jpeg;base64,${base64}`
-        doc.addImage(imageData, 'JPEG', 20, 18, pageWidth - 40, 120)
-      } catch {
-        doc.setFillColor(232, 213, 176)
-        doc.roundedRect(20, 18, pageWidth - 40, 120, 4, 4, 'F')
-      }
-    }
-
-    doc.setFontSize(13)
-    doc.setTextColor(45, 27, 0)
-    doc.setFont('helvetica', 'normal')
-    const textLines = doc.splitTextToSize(page.text, pageWidth - 40)
-    doc.text(textLines, pageWidth / 2, 158, { align: 'center' })
-  }
-
-  // Last page
-  doc.addPage()
-  doc.setFillColor(255, 248, 238)
-  doc.rect(0, 0, pageWidth, pageHeight, 'F')
-  doc.setFontSize(28)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(244, 168, 50)
-  doc.text('The End', pageWidth / 2, pageHeight / 2 - 10, { align: 'center' })
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(92, 61, 30)
-  doc.text('Created with love using StoryTales', pageWidth / 2, pageHeight / 2 + 10, { align: 'center' })
-
-  // Save to Supabase Storage
-  const pdfBuffer = Buffer.from(doc.output('arraybuffer'))
-  const fileName = `${order.id}-${childName}-storybook.pdf`
-
-  const { error: uploadError } = await supabase.storage
-    .from('storybooks')
-    .upload(fileName, pdfBuffer, {
-      contentType: 'application/pdf',
-      upsert: true,
-    })
-
-  if (!uploadError) {
-    const { data: urlData } = supabase.storage
-      .from('storybooks')
-      .getPublicUrl(fileName)
-
-    // Update story with PDF URL
-    await supabase
-      .from('stories')
-      .update({ pdf_url: urlData.publicUrl })
-      .eq('order_id', order.id)
-
-    console.log('PDF auto-saved:', urlData.publicUrl)
-  }
+  const pdfResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'http://localhost:3000' : 'http://localhost:3000'}/api/generate-pdf`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: story.title,
+      pages: story.pages,
+      illustrations: illustrations,
+      childName: childName,
+      dedication: dedication || '',
+      orderId: order.id,
+    }),
+  })
+  const pdfData = await pdfResponse.json()
+  console.log('PDF auto-generated:', pdfData.pdfUrl)
 } catch (pdfError) {
   console.log('PDF generation error:', pdfError)
 }
-
 return NextResponse.json({ 
   success: true,
   orderId: order.id,

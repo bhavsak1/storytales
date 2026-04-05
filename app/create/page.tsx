@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
 
+
 interface StoryPage {
   page: number
   text: string
@@ -85,6 +86,11 @@ export default function Home() {
     nickname: '',
     email: '',
   })
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+const [photoValidating, setPhotoValidating] = useState(false)
+const [photoValid, setPhotoValid] = useState<boolean | null>(null)
+const [photoError, setPhotoError] = useState('')
+const [photoUrl, setPhotoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const getUser = async () => {
@@ -106,6 +112,56 @@ export default function Home() {
       setFormData({ ...formData, interests: [...current, interest] })
     }
   }
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0]
+  if (!file) return
+
+  if (file.size > 5 * 1024 * 1024) {
+    setPhotoError('Photo too large. Please use under 5MB.')
+    setPhotoValid(false)
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = () => setPhotoPreview(reader.result as string)
+  reader.readAsDataURL(file)
+  setPhotoValidating(true)
+  setPhotoValid(null)
+  setPhotoError('')
+
+  try {
+    const formData = new FormData()
+    formData.append('photo', file)
+
+    const response = await fetch('/api/validate-photo', {
+      method: 'POST',
+      body: formData,
+    })
+
+    const data = await response.json()
+
+    if (data.valid) {
+      setPhotoValid(true)
+      setPhotoUrl(data.photoUrl)
+    } else {
+      setPhotoValid(false)
+      setPhotoError(data.error || 'Please upload a clear photo of a child.')
+    }
+  } catch {
+    setPhotoValid(false)
+    setPhotoError('Could not process photo. Please try again.')
+  }
+  setPhotoValidating(false)
+}
+
+const removePhoto = () => {
+  setPhotoPreview(null)
+  setPhotoValid(null)
+  setPhotoError('')
+  setPhotoUrl(null)
+  const input = document.getElementById('photo-input') as HTMLInputElement
+  if (input) input.value = ''
+}
 
   const handleSubmit = async () => {
     setStatus('generating')
@@ -123,6 +179,7 @@ export default function Home() {
           storyLength: formData.storyLength,
           dedication: formData.dedication,
           userId: user?.id,
+          photoUrl: photoUrl,
         }),
       })
       const data = await response.json()
@@ -279,6 +336,88 @@ export default function Home() {
                   className="w-full border border-amber-200 rounded-xl px-4 py-3 text-amber-900 focus:outline-none focus:border-amber-400 bg-amber-50"
                 />
               </div>
+              {/* Photo Upload */}
+<div>
+  <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">
+    Photo of {formData.childName || 'the child'}
+    <span className="text-amber-400 font-normal ml-1 normal-case">
+      (Recommended — makes illustrations look like them!)
+    </span>
+  </label>
+
+  <div
+    onClick={() => document.getElementById('photo-input')?.click()}
+    className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
+      photoPreview
+        ? photoValid === true
+          ? 'border-green-400 bg-green-50'
+          : photoValid === false
+          ? 'border-red-300 bg-red-50'
+          : 'border-amber-300 bg-amber-50'
+        : 'border-amber-300 bg-amber-50 hover:border-amber-400 hover:bg-amber-100'
+    }`}
+  >
+    <input
+      type="file"
+      id="photo-input"
+      accept="image/*"
+      className="hidden"
+      onChange={handlePhotoUpload}
+    />
+
+    {photoPreview ? (
+      <div className="flex items-center gap-4">
+        <img
+          src={photoPreview}
+          alt="Child preview"
+          className="w-16 h-16 rounded-full object-cover border-2 border-amber-300 flex-shrink-0"
+        />
+        <div className="flex-1 text-left">
+          {photoValidating ? (
+            <div>
+              <p className="text-amber-600 font-semibold text-sm">🔍 Validating photo...</p>
+              <p className="text-amber-500 text-xs mt-1">Generating your child&apos;s avatar...</p>
+            </div>
+          ) : photoValid === true ? (
+  <div className="flex items-center gap-3 w-full">
+    <div>
+      <p className="text-green-600 font-semibold text-sm">✅ Perfect photo!</p>
+      <p className="text-green-500 text-xs mt-1">Avatar ready — illustrations will look like them!</p>
+    </div>
+    {photoUrl && (
+      <div className="ml-auto flex-shrink-0">
+        <p className="text-xs text-green-600 font-bold mb-1 text-center">Avatar</p>
+        <img
+          src={photoUrl}
+          alt="Generated avatar"
+          className="w-16 h-16 rounded-xl object-cover border-2 border-green-400"
+        />
+      </div>
+    )}
+  </div>
+          ) : photoValid === false ? (
+            <div>
+              <p className="text-red-500 font-semibold text-sm">❌ {photoError}</p>
+              <p className="text-red-400 text-xs mt-1">Please try another photo.</p>
+            </div>
+          ) : null}
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); removePhoto() }}
+          className="text-xs text-red-400 hover:text-red-600 font-bold flex-shrink-0"
+        >
+          Remove
+        </button>
+      </div>
+    ) : (
+      <div>
+        <div className="text-3xl mb-2">📸</div>
+        <p className="text-amber-700 font-semibold text-sm">Click to upload a photo</p>
+        <p className="text-amber-500 text-xs mt-1">JPG or PNG · Max 5MB · Used only for illustrations</p>
+      </div>
+    )}
+  </div>
+</div>
 
               <div>
   <label className="text-xs font-bold text-amber-800 block mb-1.5 uppercase tracking-wide">
@@ -651,11 +790,12 @@ function PageFlipBook({
       >
         {/* Illustration */}
         {illustrations[current] ? (
-          <img
-            src={illustrations[current]}
-            alt={`Page ${pages[current].page}`}
-            className="w-full h-64 object-cover"
-          />
+  <img
+    src={illustrations[current]}
+    alt={`Page ${pages[current].page}`}
+    className="w-full object-contain rounded-xl"
+    style={{ maxHeight: '400px' }}
+  />
         ) : (
           <div className="w-full h-64 bg-amber-100 flex items-center justify-center text-4xl">
             📖
