@@ -21,476 +21,224 @@ async function fetchImageAsBase64(url: string): Promise<string> {
   }
 }
 
-function generatePageHtml(
-  page: StoryPage,
-  imageData: string,
-  totalPages: number,
-  childName: string
-): string {
-  return `
-    <div class="page">
-      <div class="page-header">
-        <span class="page-num">✦ ${page.page} of ${totalPages} ✦</span>
-      </div>
-
-      <div class="illustration-wrap">
-        ${imageData ? `
-          <div class="brush-frame">
-            <img src="${imageData}" class="illustration" />
-            <div class="brush-overlay top"></div>
-            <div class="brush-overlay bottom"></div>
-            <div class="brush-overlay left"></div>
-            <div class="brush-overlay right"></div>
-            <div class="brush-corner tl"></div>
-            <div class="brush-corner tr"></div>
-            <div class="brush-corner bl"></div>
-            <div class="brush-corner br"></div>
-          </div>
-        ` : `
-          <div class="illustration-placeholder">
-            <span>✨</span>
-          </div>
-        `}
-      </div>
-
-      <div class="divider">
-        <span class="divider-star">❋</span>
-      </div>
-
-      <div class="story-text">${page.text}</div>
-
-      <div class="page-footer">StoryGennie · ${childName}&apos;s Story</div>
-    </div>
-  `
-}
-
 export async function POST(request: Request) {
   try {
     const { title, pages, illustrations, childName, dedication, orderId } = await request.json()
 
-    // Fetch all images as base64
-    const imageDataList = await Promise.all(
-      illustrations.map((url: string) => fetchImageAsBase64(url))
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    })
+
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 16
+    const contentWidth = pageWidth - margin * 2
+
+    // ── HELPER: draw soft vignette around image ──
+    const drawSoftEdges = (x: number, y: number, w: number, h: number) => {
+      const steps = 12
+      for (let i = 0; i < steps; i++) {
+        const alpha = (1 - i / steps) * 0.85
+        const offset = i * 0.8
+        doc.setFillColor(255, 255, 255)
+        doc.setGState(doc.GState({ opacity: alpha }))
+        // Top edge
+        doc.rect(x, y, w, offset + 1, 'F')
+        // Bottom edge
+        doc.rect(x, y + h - offset - 1, w, offset + 1, 'F')
+        // Left edge
+        doc.rect(x, y, offset + 1, h, 'F')
+        // Right edge
+        doc.rect(x + w - offset - 1, y, offset + 1, h, 'F')
+      }
+      doc.setGState(doc.GState({ opacity: 1 }))
+    }
+
+    // ── COVER PAGE ──
+    doc.setFillColor(255, 255, 255)
+    doc.rect(0, 0, pageWidth, pageHeight, 'F')
+
+    // Decorative border
+    doc.setDrawColor(244, 168, 50)
+    doc.setLineWidth(1)
+    doc.roundedRect(8, 8, pageWidth - 16, pageHeight - 16, 5, 5, 'S')
+    doc.setLineWidth(0.3)
+    doc.setDrawColor(244, 200, 150)
+    doc.roundedRect(11, 11, pageWidth - 22, pageHeight - 22, 4, 4, 'S')
+
+    // Cover emoji
+    doc.setFontSize(48)
+    doc.text('📖', pageWidth / 2, 95, { align: 'center' })
+
+    // Cover title
+    doc.setFontSize(28)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(45, 27, 0)
+    const titleLines = doc.splitTextToSize(title, pageWidth - 40)
+    doc.text(titleLines, pageWidth / 2, 120, { align: 'center' })
+
+    // Decorative line
+    doc.setDrawColor(244, 168, 50)
+    doc.setLineWidth(0.5)
+    doc.line(50, 145, pageWidth - 50, 145)
+
+    // Subtitle
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(92, 61, 30)
+    doc.text(`A personalized story for ${childName}`, pageWidth / 2, 158, { align: 'center' })
+
+    // Brand
+    doc.setFontSize(11)
+    doc.setTextColor(244, 168, 50)
+    doc.text('✨  Created with StoryGennie  ✨', pageWidth / 2, 175, { align: 'center' })
+
+    // ── DEDICATION PAGE ──
+    if (dedication) {
+      doc.addPage()
+      doc.setFillColor(255, 255, 255)
+      doc.rect(0, 0, pageWidth, pageHeight, 'F')
+
+      doc.setDrawColor(244, 168, 50)
+      doc.setLineWidth(0.4)
+      doc.line(50, pageHeight / 2 - 30, pageWidth - 50, pageHeight / 2 - 30)
+
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(244, 168, 50)
+      doc.text('A SPECIAL MESSAGE', pageWidth / 2, pageHeight / 2 - 20, { align: 'center' })
+
+      doc.setFontSize(15)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(45, 27, 0)
+      const dedLines = doc.splitTextToSize(dedication, pageWidth - 60)
+      doc.text(dedLines, pageWidth / 2, pageHeight / 2, { align: 'center', lineHeightFactor: 1.8 })
+
+      doc.setLineWidth(0.4)
+      doc.line(50, pageHeight / 2 + 25, pageWidth - 50, pageHeight / 2 + 25)
+    }
+
+    // ── STORY PAGES ──
+    for (const page of pages) {
+      doc.addPage()
+      doc.setFillColor(255, 255, 255)
+      doc.rect(0, 0, pageWidth, pageHeight, 'F')
+
+      // Subtle corner decorations
+      doc.setFontSize(14)
+      doc.setTextColor(244, 168, 50)
+      doc.setGState(doc.GState({ opacity: 0.3 }))
+      doc.text('❧', 10, 14)
+      doc.text('❧', pageWidth - 10, 14, { align: 'right' })
+      doc.text('❧', 10, pageHeight - 6)
+      doc.text('❧', pageWidth - 10, pageHeight - 6, { align: 'right' })
+      doc.setGState(doc.GState({ opacity: 1 }))
+
+      // Page number
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(244, 168, 50)
+      doc.text(
+        `✦  ${page.page} of ${pages.length}  ✦`,
+        pageWidth / 2, 12,
+        { align: 'center' }
+      )
+
+      // Illustration
+      const imageUrl = illustrations[page.page - 1]
+      const imgX = margin
+      const imgY = 16
+      const imgW = contentWidth
+      const imgH = 118
+
+      if (imageUrl) {
+        try {
+          const imageData = await fetchImageAsBase64(imageUrl)
+          if (imageData) {
+            // Draw image
+            doc.addImage(imageData, 'JPEG', imgX, imgY, imgW, imgH, '', 'FAST')
+            // Soft vignette edges
+            drawSoftEdges(imgX, imgY, imgW, imgH)
+          }
+        } catch {
+          doc.setFillColor(255, 245, 224)
+          doc.roundedRect(imgX, imgY, imgW, imgH, 4, 4, 'F')
+          doc.setFontSize(11)
+          doc.setTextColor(158, 128, 96)
+          doc.text('[ Illustration ]', pageWidth / 2, imgY + imgH / 2, { align: 'center' })
+        }
+      }
+
+      // Divider
+      const divY = imgY + imgH + 6
+      doc.setDrawColor(244, 168, 50)
+      doc.setLineWidth(0.3)
+      doc.setGState(doc.GState({ opacity: 0.6 }))
+      doc.line(margin + 10, divY, pageWidth - margin - 10, divY)
+      doc.setGState(doc.GState({ opacity: 1 }))
+      doc.setFontSize(9)
+      doc.setTextColor(244, 168, 50)
+      doc.text('❋', pageWidth / 2, divY + 4, { align: 'center' })
+
+      // Story text
+      doc.setFontSize(12.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(45, 27, 0)
+      const textLines = doc.splitTextToSize(page.text, contentWidth)
+      doc.text(textLines, pageWidth / 2, divY + 10, {
+        align: 'center',
+        lineHeightFactor: 1.75,
+      })
+
+      // Footer
+      doc.setFontSize(8)
+      doc.setTextColor(196, 162, 101)
+      doc.setFont('helvetica', 'normal')
+      doc.text(
+        `STORYGENNIE  ·  ${childName.toUpperCase()}'S STORY`,
+        pageWidth / 2,
+        pageHeight - 6,
+        { align: 'center' }
+      )
+    }
+
+    // ── LAST PAGE ──
+    doc.addPage()
+    doc.setFillColor(255, 255, 255)
+    doc.rect(0, 0, pageWidth, pageHeight, 'F')
+
+    doc.setDrawColor(244, 168, 50)
+    doc.setLineWidth(1)
+    doc.roundedRect(8, 8, pageWidth - 16, pageHeight - 16, 5, 5, 'S')
+
+    doc.setFontSize(36)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(244, 168, 50)
+    doc.text('The End', pageWidth / 2, pageHeight / 2 - 16, { align: 'center' })
+
+    doc.setDrawColor(244, 168, 50)
+    doc.setLineWidth(0.5)
+    doc.line(50, pageHeight / 2 - 6, pageWidth - 50, pageHeight / 2 - 6)
+
+    doc.setFontSize(13)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(92, 61, 30)
+    doc.text(
+      `~ ${childName}'s magical adventure ~`,
+      pageWidth / 2, pageHeight / 2 + 6,
+      { align: 'center' }
     )
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fredoka+One&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(196, 162, 101)
+    doc.text('storygennie.com', pageWidth / 2, pageHeight / 2 + 18, { align: 'center' })
 
-  body {
-    background: white;
-    font-family: 'Nunito', sans-serif;
-  }
-
-  .page {
-    width: 210mm;
-    min-height: 297mm;
-    background: white;
-    padding: 14mm 16mm;
-    page-break-after: always;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    position: relative;
-  }
-
-  /* Subtle corner decorations */
-  .page::before, .page::after {
-    content: '❧';
-    position: absolute;
-    font-size: 18px;
-    color: #F4A832;
-    opacity: 0.4;
-  }
-  .page::before { top: 8mm; left: 10mm; }
-  .page::after { bottom: 8mm; right: 10mm; transform: rotate(180deg); }
-
-  /* Cover page */
-  .cover {
-    width: 210mm;
-    min-height: 297mm;
-    background: white;
-    page-break-after: always;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 20mm;
-    position: relative;
-  }
-
-  .cover-border {
-    position: absolute;
-    inset: 8mm;
-    border: 2px solid #F4A832;
-    border-radius: 8px;
-    opacity: 0.4;
-  }
-
-  .cover-border-inner {
-    position: absolute;
-    inset: 11mm;
-    border: 1px solid #F4A832;
-    border-radius: 6px;
-    opacity: 0.25;
-  }
-
-  .cover-emoji {
-    font-size: 64px;
-    margin-bottom: 12mm;
-  }
-
-  .cover-title {
-    font-family: 'Fredoka One', cursive;
-    font-size: 36px;
-    color: #2D1B00;
-    line-height: 1.2;
-    margin-bottom: 8mm;
-    max-width: 160mm;
-  }
-
-  .cover-subtitle {
-    font-family: 'Nunito', sans-serif;
-    font-size: 16px;
-    color: #5C3D1E;
-    font-weight: 600;
-    margin-bottom: 6mm;
-  }
-
-  .cover-brand {
-    font-family: 'Caveat', cursive;
-    font-size: 18px;
-    color: #F4A832;
-    margin-top: 10mm;
-  }
-
-  /* Dedication page */
-  .dedication {
-    width: 210mm;
-    min-height: 297mm;
-    background: white;
-    page-break-after: always;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 20mm;
-    text-align: center;
-  }
-
-  .dedication-label {
-    font-family: 'Fredoka One', cursive;
-    font-size: 14px;
-    color: #F4A832;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    margin-bottom: 6mm;
-  }
-
-  .dedication-text {
-    font-family: 'Caveat', cursive;
-    font-size: 22px;
-    color: #2D1B00;
-    line-height: 1.6;
-    max-width: 150mm;
-  }
-
-  .dedication-line {
-    width: 40mm;
-    height: 1px;
-    background: #F4A832;
-    margin: 6mm auto;
-    opacity: 0.5;
-  }
-
-  /* Page header */
-  .page-header {
-    width: 100%;
-    text-align: center;
-    margin-bottom: 5mm;
-  }
-
-  .page-num {
-    font-family: 'Nunito', sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    color: #F4A832;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  /* Illustration with brush stroke effect */
-  .illustration-wrap {
-    width: 100%;
-    margin-bottom: 4mm;
-  }
-
-  .brush-frame {
-    position: relative;
-    width: 100%;
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  .illustration {
-    width: 100%;
-    height: 95mm;
-    object-fit: cover;
-    display: block;
-    border-radius: 4px;
-  }
-
-  /* Brush stroke overlays — simulate painted edges */
-  .brush-overlay {
-    position: absolute;
-    pointer-events: none;
-  }
-
-  .brush-overlay.top {
-    top: 0; left: 0; right: 0;
-    height: 18mm;
-    background: linear-gradient(
-      to bottom,
-      white 0%,
-      rgba(255,255,255,0.85) 25%,
-      rgba(255,255,255,0.5) 55%,
-      rgba(255,255,255,0.15) 75%,
-      transparent 100%
-    );
-  }
-
-  .brush-overlay.bottom {
-    bottom: 0; left: 0; right: 0;
-    height: 18mm;
-    background: linear-gradient(
-      to top,
-      white 0%,
-      rgba(255,255,255,0.85) 25%,
-      rgba(255,255,255,0.5) 55%,
-      rgba(255,255,255,0.15) 75%,
-      transparent 100%
-    );
-  }
-
-  .brush-overlay.left {
-    top: 0; left: 0; bottom: 0;
-    width: 14mm;
-    background: linear-gradient(
-      to right,
-      white 0%,
-      rgba(255,255,255,0.85) 25%,
-      rgba(255,255,255,0.4) 60%,
-      transparent 100%
-    );
-  }
-
-  .brush-overlay.right {
-    top: 0; right: 0; bottom: 0;
-    width: 14mm;
-    background: linear-gradient(
-      to left,
-      white 0%,
-      rgba(255,255,255,0.85) 25%,
-      rgba(255,255,255,0.4) 60%,
-      transparent 100%
-    );
-  }
-
-  /* Corner brush strokes — uneven organic feel */
-  .brush-corner {
-    position: absolute;
-    width: 22mm;
-    height: 22mm;
-    pointer-events: none;
-  }
-
-  .brush-corner.tl {
-    top: 0; left: 0;
-    background: radial-gradient(ellipse at 0% 0%, white 0%, rgba(255,255,255,0.9) 30%, transparent 65%);
-  }
-
-  .brush-corner.tr {
-    top: 0; right: 0;
-    background: radial-gradient(ellipse at 100% 0%, white 0%, rgba(255,255,255,0.9) 30%, transparent 65%);
-  }
-
-  .brush-corner.bl {
-    bottom: 0; left: 0;
-    background: radial-gradient(ellipse at 0% 100%, white 0%, rgba(255,255,255,0.9) 30%, transparent 65%);
-  }
-
-  .brush-corner.br {
-    bottom: 0; right: 0;
-    background: radial-gradient(ellipse at 100% 100%, white 0%, rgba(255,255,255,0.9) 30%, transparent 65%);
-  }
-
-  .illustration-placeholder {
-    width: 100%;
-    height: 95mm;
-    background: #FFF5E0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 48px;
-    border-radius: 4px;
-  }
-
-  /* Divider */
-  .divider {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 3mm;
-    margin: 3mm 0;
-  }
-
-  .divider::before, .divider::after {
-    content: '';
-    flex: 1;
-    height: 0.5px;
-    background: linear-gradient(to right, transparent, #F4A832, transparent);
-  }
-
-  .divider-star {
-    font-size: 12px;
-    color: #F4A832;
-  }
-
-  /* Story text */
-  .story-text {
-    font-family: 'Nunito', sans-serif;
-    font-size: 13.5px;
-    color: #2D1B00;
-    line-height: 1.85;
-    text-align: center;
-    font-weight: 600;
-    max-width: 165mm;
-    flex: 1;
-  }
-
-  /* Page footer */
-  .page-footer {
-    margin-top: auto;
-    padding-top: 4mm;
-    font-family: 'Nunito', sans-serif;
-    font-size: 9px;
-    color: #C4A265;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  /* Last page */
-  .last-page {
-    width: 210mm;
-    min-height: 297mm;
-    background: white;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 20mm;
-  }
-
-  .the-end {
-    font-family: 'Fredoka One', cursive;
-    font-size: 42px;
-    color: #F4A832;
-    margin-bottom: 6mm;
-  }
-
-  .last-subtitle {
-    font-family: 'Caveat', cursive;
-    font-size: 20px;
-    color: #5C3D1E;
-    margin-bottom: 10mm;
-  }
-
-  .last-brand {
-    font-family: 'Nunito', sans-serif;
-    font-size: 12px;
-    color: #C4A265;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  @media print {
-    body { margin: 0; }
-  }
-</style>
-</head>
-<body>
-
-<!-- COVER PAGE -->
-<div class="cover">
-  <div class="cover-border"></div>
-  <div class="cover-border-inner"></div>
-  <div class="cover-emoji">📖</div>
-  <div class="cover-title">${title}</div>
-  <div class="cover-subtitle">A personalized story for ${childName}</div>
-  <div class="dedication-line"></div>
-  <div class="cover-brand">✨ Created with StoryGennie ✨</div>
-</div>
-
-${dedication ? `
-<!-- DEDICATION PAGE -->
-<div class="dedication">
-  <div class="dedication-label">A special message</div>
-  <div class="dedication-line"></div>
-  <div class="dedication-text">${dedication}</div>
-  <div class="dedication-line"></div>
-</div>
-` : ''}
-
-<!-- STORY PAGES -->
-${pages.map((page: StoryPage, index: number) =>
-  generatePageHtml(page, imageDataList[index] || '', pages.length, childName)
-).join('')}
-
-<!-- LAST PAGE -->
-<div class="last-page">
-  <div class="the-end">The End</div>
-  <div class="last-subtitle">~ ${childName}'s magical adventure ~</div>
-  <div class="dedication-line"></div>
-  <div class="last-brand">StoryGennie · storygennie.com</div>
-</div>
-
-</body>
-</html>
-    `
-
-    // Launch Puppeteer and generate PDF
-    const puppeteer = await import('puppeteer')
-    const browser = await puppeteer.default.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    })
-
-    const page = await browser.newPage()
-
-    await page.setContent(html, {
-      waitUntil: 'networkidle0',
-      timeout: 60000,
-    })
-
-    const pdfUint8 = await page.pdf({
-  format: 'A4',
-  printBackground: true,
-  margin: { top: 0, right: 0, bottom: 0, left: 0 },
-})
-const pdfBuffer = Buffer.from(pdfUint8)
-
-    await browser.close()
-
-    // Save to Supabase Storage
+    // ── SAVE TO SUPABASE ──
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'))
     const fileName = `${orderId || Date.now()}-${childName}-storybook.pdf`
 
     const { error: uploadError } = await supabase.storage
@@ -514,7 +262,6 @@ const pdfBuffer = Buffer.from(pdfUint8)
       .from('storybooks')
       .getPublicUrl(fileName)
 
-    // Update story record
     if (orderId) {
       await supabase
         .from('stories')
