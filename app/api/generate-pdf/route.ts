@@ -70,8 +70,10 @@ export async function POST(request: Request) {
     doc.roundedRect(11, 11, pageWidth - 22, pageHeight - 22, 4, 4, 'S')
 
     // Cover emoji
-    doc.setFontSize(48)
-    doc.text('📖', pageWidth / 2, 95, { align: 'center' })
+    // Decorative stars
+doc.setFontSize(24)
+doc.setTextColor(244, 168, 50)
+doc.text('* * *', pageWidth / 2, 95, { align: 'center' })
 
     // Cover title
     doc.setFontSize(28)
@@ -131,10 +133,10 @@ export async function POST(request: Request) {
       doc.setFontSize(14)
       doc.setTextColor(244, 168, 50)
       doc.setGState(doc.GState({ opacity: 0.3 }))
-      doc.text('❧', 10, 14)
-      doc.text('❧', pageWidth - 10, 14, { align: 'right' })
-      doc.text('❧', 10, pageHeight - 6)
-      doc.text('❧', pageWidth - 10, pageHeight - 6, { align: 'right' })
+      doc.text('*', 10, 14)
+      doc.text('*', pageWidth - 10, 14, { align: 'right' })
+      doc.text('*', 10, pageHeight - 6)
+      doc.text('*', pageWidth - 10, pageHeight - 6, { align: 'right' })
       doc.setGState(doc.GState({ opacity: 1 }))
 
       // Page number
@@ -142,7 +144,7 @@ export async function POST(request: Request) {
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(244, 168, 50)
       doc.text(
-        `✦  ${page.page} of ${pages.length}  ✦`,
+        `-  ${page.page} of ${pages.length}  -`,
         pageWidth / 2, 12,
         { align: 'center' }
       )

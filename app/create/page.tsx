@@ -615,18 +615,13 @@ const removePhoto = () => {
         {step === 4 && (
           <div className="step-enter">
             {status === 'generating' && (
-              <div className="text-center py-16">
-                <div className="text-6xl mb-6 pulse">🪄</div>
-                <h2 className="fredoka text-3xl text-amber-900 mb-3">Creating {formData.childName}&apos;s Story...</h2>
-                <p className="text-amber-700 mb-2">Our illustrators are working their magic!</p>
-                <p className="text-amber-500 text-sm">This takes about 30-40 seconds</p>
-                <div className="mt-8 flex justify-center gap-2">
-                  {['Writing story...', 'Drawing illustrations...', 'Adding magic...'].map((msg, i) => (
-                    <div key={i} className="px-3 py-1 bg-amber-100 rounded-full text-xs text-amber-700" style={{ animationDelay: `${i * 0.5}s` }}>{msg}</div>
-                  ))}
-                </div>
-              </div>
-            )}
+  <MagicalLoader
+    childName={formData.childName}
+    interests={formData.interests}
+    theme={formData.theme}
+    gender={formData.gender}
+  />
+)}
 
             {status === 'complete' && story && (
   <PageFlipBook
@@ -659,7 +654,238 @@ const removePhoto = () => {
     </main>
   )
 }
+ function MagicalLoader({
+  childName,
+  interests,
+  theme,
+  gender,
+}: {
+  childName: string
+  interests: string[]
+  theme: string
+  gender: string
+}) {
+  const [currentStage, setCurrentStage] = useState(0)
+  const [progress, setProgress] = useState(0)
+  const [currentFact, setCurrentFact] = useState(0)
+  const [dots, setDots] = useState('.')
 
+  const pronoun = gender === 'Girl' ? 'her' : gender === 'Boy' ? 'his' : 'their'
+  const pronounCap = gender === 'Girl' ? 'Her' : gender === 'Boy' ? 'His' : 'Their'
+
+  const stages = [
+    {
+      icon: '✍️',
+      title: `Making ${childName} the hero`,
+      subtitle: `Claude is writing ${pronoun} adventure in India`,
+      duration: 20,
+    },
+    {
+      icon: '🎨',
+      title: `Building ${childName}'s world`,
+      subtitle: `Adding ${interests[0] || 'magic'} to the ${theme}`,
+      duration: 40,
+    },
+    {
+      icon: '🖼️',
+      title: `Painting ${pronoun} illustrations`,
+      subtitle: `${pronounCap} story is coming to life`,
+      duration: 30,
+    },
+    {
+      icon: '📖',
+      title: `Binding ${childName}'s storybook`,
+      subtitle: 'Almost ready — just a few seconds!',
+      duration: 10,
+    },
+  ]
+
+  const facts = [
+    `Adding ${interests[0] || 'magic'} to ${childName}'s adventure`,
+    `Setting the scene in a magical Indian world`,
+    `Making ${childName} the bravest hero`,
+    interests[1] ? `Weaving ${interests[1]} into the story` : `Crafting a beautiful moral`,
+    `Painting ${childName}'s unique character`,
+    interests[2] ? `Bringing ${interests[2]} to life` : `Adding sparkle to every page`,
+    `Creating memories that last forever`,
+    `Almost done — the magic is nearly complete!`,
+  ]
+
+  useEffect(() => {
+    // Progress bar animation
+    const progressInterval = setInterval(() => {
+      setProgress(p => {
+        if (p >= 95) return 95
+        return p + 0.8
+      })
+    }, 400)
+
+    // Stage advancement
+    const stageTimers = [
+      setTimeout(() => setCurrentStage(1), 8000),
+      setTimeout(() => setCurrentStage(2), 25000),
+      setTimeout(() => setCurrentStage(3), 55000),
+    ]
+
+    // Rotating facts
+    const factInterval = setInterval(() => {
+      setCurrentFact(f => (f + 1) % facts.length)
+    }, 3000)
+
+    // Animated dots
+    const dotsInterval = setInterval(() => {
+      setDots(d => d.length >= 3 ? '.' : d + '.')
+    }, 500)
+
+    return () => {
+      clearInterval(progressInterval)
+      clearInterval(factInterval)
+      clearInterval(dotsInterval)
+      stageTimers.forEach(clearTimeout)
+    }
+  }, [])
+
+  return (
+    <div className="text-center py-8 px-4">
+      <style>{`
+        @keyframes sparkle {
+          0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+          50% { transform: scale(1.2) rotate(15deg); opacity: 0.7; }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        .sparkle-anim { animation: sparkle 2s ease-in-out infinite; }
+        .float-anim { animation: float 3s ease-in-out infinite; }
+        .fade-in { animation: fadeIn 0.5s ease; }
+        .shimmer {
+          background: linear-gradient(90deg, #F4A832 0%, #F4867A 50%, #F4A832 100%);
+          background-size: 200% auto;
+          animation: shimmer 2s linear infinite;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+      `}</style>
+
+      {/* Avatar with sparkles */}
+      <div className="relative inline-block mb-6 float-anim">
+        <div className="w-24 h-24 rounded-full bg-amber-100 border-4 border-amber-400 flex items-center justify-center text-5xl mx-auto">
+          {gender === 'Girl' ? '👧' : gender === 'Boy' ? '👦' : '🧒'}
+        </div>
+        <div className="absolute -top-2 -right-2 text-xl sparkle-anim">✨</div>
+        <div className="absolute -bottom-1 -left-2 text-lg sparkle-anim" style={{ animationDelay: '0.5s' }}>⭐</div>
+        <div className="absolute top-1/2 -right-4 text-sm sparkle-anim" style={{ animationDelay: '1s' }}>✦</div>
+      </div>
+
+      {/* Main headline */}
+      <h2 className="fredoka text-2xl md:text-3xl text-amber-900 mb-2">
+        {childName} is becoming a hero{dots}
+      </h2>
+      <p className="text-amber-600 font-semibold text-sm mb-8">
+        Your magical storybook is being crafted with love
+      </p>
+
+      {/* Stages */}
+      <div className="max-w-sm mx-auto mb-8 space-y-3">
+        {stages.map((stage, i) => (
+          <div
+            key={i}
+            className={`flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-500 ${
+              i < currentStage
+                ? 'bg-green-50 border border-green-200'
+                : i === currentStage
+                ? 'bg-amber-50 border-2 border-amber-400 shadow-sm'
+                : 'bg-gray-50 border border-gray-100 opacity-40'
+            }`}
+          >
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0 ${
+              i < currentStage
+                ? 'bg-green-100'
+                : i === currentStage
+                ? 'bg-amber-100'
+                : 'bg-gray-100'
+            }`}>
+              {i < currentStage ? '✅' : stage.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className={`font-bold text-sm ${
+                i < currentStage ? 'text-green-700' :
+                i === currentStage ? 'text-amber-900' :
+                'text-gray-400'
+              }`}>
+                {stage.title}
+              </div>
+              <div className={`text-xs mt-0.5 ${
+                i < currentStage ? 'text-green-600' :
+                i === currentStage ? 'text-amber-600' :
+                'text-gray-300'
+              }`}>
+                {stage.subtitle}
+              </div>
+            </div>
+            {i === currentStage && (
+              <div className="flex gap-1 flex-shrink-0">
+                {[0, 1, 2].map(d => (
+                  <div
+                    key={d}
+                    className="w-1.5 h-1.5 bg-amber-400 rounded-full"
+                    style={{ animation: `sparkle 1s ease-in-out ${d * 0.2}s infinite` }}
+                  />
+                ))}
+              </div>
+            )}
+            {i < currentStage && (
+              <div className="text-green-500 font-black text-sm flex-shrink-0">✓</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Progress bar */}
+      <div className="max-w-sm mx-auto mb-6">
+        <div className="flex justify-between text-xs text-amber-600 font-bold mb-2">
+          <span>Creating magic...</span>
+          <span>{Math.round(progress)}%</span>
+        </div>
+        <div className="h-3 bg-amber-100 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${progress}%`,
+              background: 'linear-gradient(90deg, #F4A832, #F4867A)',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Rotating fun facts */}
+      <div className="max-w-xs mx-auto bg-white border border-amber-200 rounded-2xl px-4 py-3">
+        <div key={currentFact} className="fade-in">
+          <div className="text-lg mb-1">
+            {['🦕', '🌟', '🎨', '🏰', '✨', '🇮🇳', '📖', '🎉'][currentFact % 8]}
+          </div>
+          <p className="text-xs font-semibold text-amber-800 leading-relaxed">
+            {facts[currentFact]}
+          </p>
+        </div>
+      </div>
+
+      <p className="text-amber-400 text-xs mt-6 font-semibold">
+        Takes about 30-60 seconds · Please don&apos;t close this tab
+      </p>
+    </div>
+  )
+}
 function PageFlipBook({
   title,
   pages,
@@ -873,4 +1099,5 @@ function PageFlipBook({
       </div>
     </div>
   )
+ 
 }
