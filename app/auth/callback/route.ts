@@ -4,11 +4,12 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const next = searchParams.get('next') || '/create'
 
   if (code) {
     const supabase = await createSupabaseServer()
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  return NextResponse.redirect(`${origin}/create`)
+  return NextResponse.redirect(`${origin}${next}`)
 }

@@ -80,6 +80,35 @@ export async function POST(request: Request) {
       })
     }
 
+    // Check if this is a coloring book upload (skip avatar generation)
+    const url = new URL(request.url)
+    const mode = url.searchParams.get('mode')
+
+    if (mode === 'coloringbook') {
+      // Coloring book mode: save original photo to Supabase, skip Wan avatar
+      console.log('Coloring book mode — saving original photo...')
+      const fileName = `photos/${Date.now()}-original.jpg`
+
+      const { error: uploadError } = await supabase.storage
+        .from('storybooks')
+        .upload(fileName, photoBuffer, {
+          contentType: photo.type || 'image/jpeg',
+          upsert: true,
+        })
+
+      if (uploadError) {
+        console.log('Storage upload error:', uploadError)
+        return NextResponse.json({ valid: false, error: 'Could not save photo.' })
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('storybooks')
+        .getPublicUrl(fileName)
+
+      console.log('Photo saved to Supabase:', urlData.publicUrl)
+      return NextResponse.json({ valid: true, photoUrl: urlData.publicUrl })
+    }
+
     // Step 2: Upload photo to fal.ai storage
     console.log('Uploading photo to fal.ai...')
     const photoFile = new File([photoBuffer], photo.name, { type: photo.type })

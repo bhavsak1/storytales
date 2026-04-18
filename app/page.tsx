@@ -56,17 +56,15 @@ export default function LandingPage() {
       {/* NAV */}
       <nav className="bg-white bg-opacity-95 border-b border-amber-100 sticky top-0 z-50 px-5 md:px-10 lg:px-16 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-        <img src="/logo.jpg" alt="StoryGennie" className="h-15 w-auto" />
-        <span className="fredoka text-xl md:text-2xl text-amber-900">StoryGennie</span>
+          <img src="/logo.jpg" alt="StoryGennie" className="h-15 w-auto" />
+          <span className="fredoka text-xl md:text-2xl text-amber-900">StoryGennie</span>
         </div>
         <div className="hidden md:flex items-center gap-6">
           <a href="#how-it-works" className="text-sm font-bold text-amber-800 hover:text-amber-600 no-underline">How it works</a>
           <a href="#pricing" className="text-sm font-bold text-amber-800 hover:text-amber-600 no-underline">Pricing</a>
           <Link href="/login" className="text-sm font-bold text-amber-800 hover:text-amber-600 no-underline">Sign in</Link>
         </div>
-        <Link href="/create" className="btn-pink fredoka px-4 py-2 md:px-6 md:py-3 rounded-full text-sm md:text-base no-underline" style={{ boxShadow: '0 4px 14px rgba(244,134,122,0.35)' }}>
-          Create Their Story ✨
-        </Link>
+
       </nav>
 
       {/* HERO */}
@@ -84,12 +82,17 @@ export default function LandingPage() {
             <p className="text-base md:text-lg text-amber-800 font-semibold leading-relaxed mb-7 max-w-lg mx-auto lg:mx-0">
               A beautifully illustrated storybook where <strong>your child is the hero</strong> — crafted by AI in minutes, delivered to your door or inbox.
             </p>
-            <div className="flex flex-col sm:flex-row items-center lg:items-start gap-3 justify-center lg:justify-start mb-7">
-              <Link href="/create" className="btn-pink fredoka w-full sm:w-auto text-center px-8 py-4 rounded-full text-lg no-underline" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
-                Create Their Story ✨
-              </Link>
-              <a href="#how-it-works" className="w-full sm:w-auto text-center bg-white border-2 border-amber-300 hover:border-amber-400 text-amber-900 font-bold px-8 py-4 rounded-full text-base no-underline transition-all">
-                See how it works →
+            <div className="flex flex-col items-center lg:items-start gap-3 justify-center lg:justify-start mb-7">
+              <div className="flex flex-col sm:flex-row items-center lg:items-start gap-3 w-full">
+                <Link href="/create" className="btn-pink fredoka w-full sm:w-auto text-center px-8 py-4 rounded-full text-lg no-underline whitespace-nowrap" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
+                  Create Their Story ✨
+                </Link>
+                <Link href="/create-colorbook" className="btn-pink fredoka w-full sm:w-auto text-center px-8 py-4 rounded-full text-lg no-underline whitespace-nowrap" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
+                  Create Their Colorbook 🖍️
+                </Link>
+              </div>
+              <a href="#how-it-works" className="text-amber-700 hover:text-amber-900 font-bold text-sm no-underline transition-all underline-offset-2" style={{ textDecoration: 'underline' }}>
+                See How it Works →
               </a>
             </div>
             {/* Social proof */}
@@ -141,10 +144,18 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
-        <div className="text-center mt-10">
-          <Link href="/create" className="btn-pink fredoka inline-block px-10 py-4 rounded-full text-lg no-underline" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
-            Create Their Story ✨
-          </Link>
+        <div className="text-center mt-10 flex flex-col items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Link href="/create" className="btn-pink fredoka inline-block px-10 py-4 rounded-full text-lg no-underline" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
+              Create Their Story ✨
+            </Link>
+            <Link href="/create-colorbook" className="btn-pink fredoka inline-block px-10 py-4 rounded-full text-lg no-underline" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
+              Create Their Colorbook 🖍️
+            </Link>
+          </div>
+          <a href="#how-it-works" className="text-amber-700 hover:text-amber-900 font-bold text-sm no-underline transition-all underline-offset-2" style={{ textDecoration: 'underline' }}>
+            See How it Works →
+          </a>
         </div>
       </section>
 
@@ -214,9 +225,19 @@ export default function LandingPage() {
         <p className="text-amber-200 font-semibold mb-8 max-w-md mx-auto leading-relaxed">
           Join thousands of parents and grandparents who have gifted a personalized storybook.
         </p>
-        <Link href="/create" className="inline-block bg-amber-400 hover:bg-amber-300 text-amber-900 fredoka px-12 py-4 rounded-full text-xl no-underline transition-all" style={{ boxShadow: '0 6px 24px rgba(244,168,50,0.4)' }}>
-          Create Their Story ✨
-        </Link>
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Link href="/create" className="inline-block bg-amber-400 hover:bg-amber-300 text-amber-900 fredoka px-12 py-4 rounded-full text-xl no-underline transition-all" style={{ boxShadow: '0 6px 24px rgba(244,168,50,0.4)' }}>
+              Create Their Story ✨
+            </Link>
+            <Link href="/create-colorbook" className="inline-block bg-amber-400 hover:bg-amber-300 text-amber-900 fredoka px-12 py-4 rounded-full text-xl no-underline transition-all" style={{ boxShadow: '0 6px 24px rgba(244,168,50,0.4)' }}>
+              Create Their Colorbook 🖍️
+            </Link>
+          </div>
+          <a href="#how-it-works" className="text-amber-200 hover:text-white font-bold text-sm no-underline transition-all underline-offset-2" style={{ textDecoration: 'underline' }}>
+            See How it Works →
+          </a>
+        </div>
       </section>
 
       {/* FOOTER */}
