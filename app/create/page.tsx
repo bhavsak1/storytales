@@ -272,7 +272,7 @@ const removePhoto = () => {
         )}
       </nav>
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
+<div className={`mx-auto px-4 py-8 ${step === 4 && status === 'complete' ? 'max-w-5xl' : 'max-w-2xl'}`}>
 
         {/* STEP 1 — ABOUT */}
         {step === 1 && (
@@ -1000,10 +1000,12 @@ function PageFlipBook({
           A personalized story for {childName}
         </p>
       </div>
+{/* Page card */}
+      
 
-      {/* Page card */}
+{/* Page card — split layout: illustration left, text right */}
       <div
-        className={`bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-md ${
+        className={`bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-lg ${
           animating
             ? direction === 'next'
               ? 'page-exit-next'
@@ -1012,30 +1014,42 @@ function PageFlipBook({
             ? 'page-enter-next'
             : 'page-enter-prev'
         }`}
-        style={{ perspective: '1000px' }}
+        style={{ perspective: '1000px', minHeight: '420px' }}
       >
-        {/* Illustration */}
-        {illustrations[current] ? (
-  <img
-    src={illustrations[current]}
-    alt={`Page ${pages[current].page}`}
-    className="w-full object-contain rounded-xl"
-    style={{ maxHeight: '400px' }}
-  />
-        ) : (
-          <div className="w-full h-64 bg-amber-100 flex items-center justify-center text-4xl">
-            📖
-          </div>
-        )}
+        <div className="flex flex-col md:flex-row" style={{ minHeight: '520px' }}>
+          {/* LEFT — Illustration */}
+          {/* LEFT — Illustration, stretches to match text height */}
+          <div className="md:w-1/2 flex-shrink-0 bg-amber-50 self-stretch">
+  {illustrations[current] ? (
+    <img
+      src={illustrations[current] as string}
+      alt={`Page ${pages[current].page}`}
+      className="w-full object-cover"
+      style={{ height: '100%', minHeight: '520px', display: 'block' }}
+    />
+  ) : (
+    <div
+      className="w-full flex flex-col items-center justify-center bg-amber-50"
+      style={{ minHeight: '520px' }}
+    >
+      <div className="text-6xl mb-4 opacity-30">📖</div>
+      <p className="text-amber-300 text-sm font-semibold tracking-wide uppercase">
+        Page {pages[current].page}
+      </p>
+    </div>
+  )}
+</div>
 
-        {/* Story text */}
-        <div className="p-6">
-          <div className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">
-            Page {pages[current].page} of {pages.length}
+          {/* RIGHT — Story text, scrollable if very long */}
+          <div className="md:w-1/2 flex flex-col justify-start px-8 py-10 overflow-y-auto" style={{ background: '#fdf8f0', maxHeight: '700px' }}>
+            <div className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-4">
+              Page {pages[current].page} of {pages.length}
+            </div>
+            <p className="text-gray-800 leading-relaxed text-lg" style={{ fontFamily: 'Georgia, serif' }}>
+              {pages[current].text}
+            </p>
           </div>
-          <p className="text-amber-900 leading-relaxed text-lg">
-            {pages[current].text}
-          </p>
+        
         </div>
       </div>
 
