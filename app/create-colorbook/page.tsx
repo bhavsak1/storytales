@@ -5,6 +5,15 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
+import Script from 'next/script'
+import { COLORBOOK_PLAN } from '@/lib/pricing'
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare global {
+  interface Window {
+    Razorpay: any
+  }
+}
 
 interface ColoringPage {
   page: number
@@ -51,7 +60,7 @@ export default function CreateColorbook() {
     gender: '',
     interests: [],
     mode: 'abc',
-    pageCount: 10,
+    pageCount: 26,
     dedication: '',
     email: '',
   })
@@ -61,6 +70,11 @@ export default function CreateColorbook() {
   const [photoValid, setPhotoValid] = useState<boolean | null>(null)
   const [photoError, setPhotoError] = useState('')
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+
+// ── Preview + Payment state ──
+const [previewData, setPreviewData] = useState<{ title: string; pages: ColoringPage[]; illustrations: string[] } | null>(null)
+const [previewLoading, setPreviewLoading] = useState(false)
+const [paymentLoading, setPaymentLoading] = useState(false)
 
   useEffect(() => {
     const getUser = async () => {
@@ -134,6 +148,137 @@ export default function CreateColorbook() {
     if (input) input.value = ''
   }
 
+  // ── Generate coloring book preview (2 pages with illustrations) ──
+  const handleGeneratePreview = async () => {
+    setPreviewLoading(true)
+    try {
+      const response = await fetch('/api/generate-colorbook-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childName: formData.childName,
+          age: formData.age,
+          interests: formData.interests.join(', '),
+          mode: formData.mode,
+          photoUrl: photoUrl,
+        }),
+      })
+      const data = await response.json()
+      if (data.success) {
+        setPreviewData({ title: data.title, pages: data.pages, illustrations: data.illustrations })
+        setStep(3.5)
+      } else {
+        alert('Could not generate preview. Please try again.')
+      }
+    } catch {
+      alert('Something went wrong. Please try again.')
+    }
+    setPreviewLoading(false)
+  }
+
+  // ── Razorpay payment flow ──
+  const handlePayment = async () => {
+    setPaymentLoading(true)
+    try {
+      // 1. Create order on server
+      const orderRes = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childName: formData.childName,
+          age: formData.age,
+          gender: formData.gender,
+          interests: formData.interests.join(', '),
+          theme: formData.mode === 'abc' ? 'ABC Adventure' : '123 World',
+          storyLength: String(formData.pageCount),
+          deliveryType: 'digital',
+          dedication: formData.dedication,
+          userId: user?.id,
+          photoUrl: photoUrl,
+          email: formData.email,
+        }),
+      })
+      const orderData = await orderRes.json()
+      if (!orderData.success) {
+        alert('Could not create order. Please try again.')
+        setPaymentLoading(false)
+        return
+      }
+
+      console.log('Order created:', { orderId: orderData.orderId, razorpayOrderId: orderData.razorpayOrderId })
+
+      // 2. Open Razorpay checkout modal
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'StoryGennie',
+        description: `${previewData?.title || 'Coloring Book'} for ${formData.childName}`,
+        order_id: orderData.razorpayOrderId,
+        handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+          // 3. Verify payment and trigger generation
+          setStatus('generating')
+          setStep(4)
+          try {
+            const verifyRes = await fetch('/api/verify-colorbook-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: orderData.orderId,
+                childName: formData.childName,
+                age: formData.age,
+                interests: formData.interests.join(', '),
+                mode: formData.mode,
+                pageCount: formData.pageCount,
+                dedication: formData.dedication,
+                userId: user?.id,
+                photoUrl: photoUrl,
+              }),
+            })
+            const verifyData = await verifyRes.json()
+            if (verifyData.success) {
+              setStatus('complete')
+              setStory(verifyData.story)
+              setIllustrations(verifyData.illustrations || [])
+            } else {
+              setStatus('error')
+            }
+          } catch {
+            setStatus('error')
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setPaymentLoading(false)
+          },
+        },
+        prefill: {
+          email: formData.email,
+          contact: '',
+        },
+        theme: {
+          color: '#F4A832',
+        },
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.on('payment.failed', (response: any) => {
+        console.log('Razorpay payment failed:', response.error)
+        alert(`Oops! Something went wrong.\n${response.error?.description || 'Payment Failed'}`)
+        setPaymentLoading(false)
+      })
+      rzp.open()
+      setPaymentLoading(false)
+    } catch (err) {
+      console.log('Payment error:', err)
+      alert('Payment failed. Please try again.')
+      setPaymentLoading(false)
+    }
+  }
+
   const handleSubmit = async () => {
     setStatus('generating')
     setStep(4)
@@ -166,6 +311,8 @@ export default function CreateColorbook() {
 
   return (
     <main className="min-h-screen bg-amber-50" style={{ fontFamily: "'Nunito', sans-serif" }}>
+      {/* Razorpay checkout script */}
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
         .fredoka { font-family: 'Fredoka One', cursive; }
@@ -190,6 +337,9 @@ export default function CreateColorbook() {
         <div className="flex items-center gap-3">
           {user && (
             <>
+              <Link href="/" className="text-sm font-bold text-amber-700 hover:text-amber-900 no-underline hidden sm:block">
+                Home
+              </Link>
               <Link href="/orders" className="text-sm font-bold text-amber-700 hover:text-amber-900 no-underline hidden sm:block">
                 My Orders
               </Link>
@@ -202,16 +352,16 @@ export default function CreateColorbook() {
 
         {step < 4 && (
           <div className="flex items-center gap-2">
-            {[1, 2, 3].map(s => (
+            {[1, 2, 3, 4].map(s => (
               <div key={s} className="flex items-center gap-2">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                  s < step ? 'bg-green-500 text-white' :
-                  s === step ? 'bg-amber-500 text-white' :
+                  s < Math.ceil(step) ? 'bg-green-500 text-white' :
+                  s === Math.ceil(step) ? 'bg-amber-500 text-white' :
                   'bg-amber-100 text-amber-400'
                 }`}>
-                  {s < step ? '✓' : s}
+                  {s < Math.ceil(step) ? '✓' : s}
                 </div>
-                {s < 3 && <div className={`w-8 h-0.5 ${s < step ? 'bg-green-400' : 'bg-amber-200'}`} />}
+                {s < 4 && <div className={`w-8 h-0.5 ${s < Math.ceil(step) ? 'bg-green-400' : 'bg-amber-200'}`} />}
               </div>
             ))}
           </div>
@@ -332,28 +482,24 @@ export default function CreateColorbook() {
               <div>
                 <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Learning Mode</label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setFormData({ ...formData, mode: 'abc' })} className={`p-4 rounded-xl border-2 text-center transition-all ${formData.mode === 'abc' ? 'border-sky-400 bg-sky-50' : 'border-amber-200 bg-amber-50 hover:border-amber-300'}`}>
+                  <button onClick={() => setFormData({ ...formData, mode: 'abc', pageCount: 26 })} className={`p-4 rounded-xl border-2 text-center transition-all ${formData.mode === 'abc' ? 'border-sky-400 bg-sky-50' : 'border-amber-200 bg-amber-50 hover:border-amber-300'}`}>
                     <div className="text-3xl font-bold text-sky-500 mb-1">ABC</div>
                     <div className="font-bold text-amber-900 text-sm">Alphabet Journey</div>
+                    <div className="text-xs text-amber-500 mt-1">26 pages · A to Z</div>
                   </button>
-                  <button onClick={() => setFormData({ ...formData, mode: '123' })} className={`p-4 rounded-xl border-2 text-center transition-all ${formData.mode === '123' ? 'border-sky-400 bg-sky-50' : 'border-amber-200 bg-amber-50 hover:border-amber-300'}`}>
+                  <button onClick={() => setFormData({ ...formData, mode: '123', pageCount: 10 })} className={`p-4 rounded-xl border-2 text-center transition-all ${formData.mode === '123' ? 'border-sky-400 bg-sky-50' : 'border-amber-200 bg-amber-50 hover:border-amber-300'}`}>
                     <div className="text-3xl font-bold text-sky-500 mb-1">123</div>
                     <div className="font-bold text-amber-900 text-sm">Number Adventure</div>
+                    <div className="text-xs text-amber-500 mt-1">10 pages · 1 to 10</div>
                   </button>
                 </div>
               </div>
 
               <div>
                 <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Book Length</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setFormData({ ...formData, pageCount: 10 })} className={`p-4 rounded-xl border-2 text-center transition-all ${formData.pageCount === 10 ? 'border-sky-400 bg-sky-50' : 'border-amber-200 bg-amber-50 hover:border-amber-300'}`}>
-                    <div className="font-bold text-amber-900 text-sm">10 Pages</div>
-                    <div className="text-xs text-amber-600">{formData.mode === 'abc' ? 'Letters A to J' : 'Numbers 1 to 10'}</div>
-                  </button>
-                  <button onClick={() => setFormData({ ...formData, pageCount: 26 })} className={`p-4 rounded-xl border-2 text-center transition-all ${formData.pageCount === 26 ? 'border-sky-400 bg-sky-50' : 'border-amber-200 bg-amber-50 hover:border-amber-300'}`}>
-                    <div className="font-bold text-amber-900 text-sm">26 Pages</div>
-                    <div className="text-xs text-amber-600">{formData.mode === 'abc' ? 'Letters A to Z' : 'Numbers 1 to 26'}</div>
-                  </button>
+                <div className="w-full p-4 rounded-xl border-2 border-sky-400 bg-sky-50 text-center">
+                  <div className="font-bold text-amber-900 text-sm">{formData.pageCount} Pages</div>
+                  <div className="text-xs text-amber-600">{formData.mode === 'abc' ? 'Letters A to Z' : 'Numbers 1 to 10'}</div>
                 </div>
               </div>
 
@@ -392,12 +538,18 @@ export default function CreateColorbook() {
               <div>
                 <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Delivery Option</label>
                 <div className="w-full p-4 rounded-xl border-2 border-amber-400 bg-[#FFFBF0] text-left flex items-center gap-3">
-                  <span className="text-3xl">🖨️</span>
+                  <span className="text-3xl">{COLORBOOK_PLAN.emoji}</span>
                   <div className="flex-1">
-                    <div className="font-bold text-amber-900">Digital PDF</div>
-                    <div className="text-xs text-amber-600">Download instantly & print at home</div>
+                    <div className="font-bold text-amber-900 flex items-center gap-2">
+                      {COLORBOOK_PLAN.name}
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">🎉 Intro Offer</span>
+                    </div>
+                    <div className="text-xs text-amber-600">{COLORBOOK_PLAN.desc}</div>
                   </div>
-                  <div className="fredoka text-xl text-green-600">₹199</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="fredoka text-xl text-green-600">{COLORBOOK_PLAN.price}</span>
+                    {COLORBOOK_PLAN.originalPrice && <span className="text-sm text-amber-400 line-through">{COLORBOOK_PLAN.originalPrice}</span>}
+                  </div>
                 </div>
               </div>
 
@@ -407,15 +559,127 @@ export default function CreateColorbook() {
                   <div className="flex justify-between"><span className="text-amber-600">Child</span><span className="font-bold text-amber-900">{formData.childName}, {formData.age}</span></div>
                   <div className="flex justify-between"><span className="text-amber-600">Book Type</span><span className="font-bold text-amber-900">Coloring Book ({formData.mode.toUpperCase()})</span></div>
                   <div className="flex justify-between"><span className="text-amber-600">Length</span><span className="font-bold text-amber-900">{formData.pageCount} pages</span></div>
-                  <div className="flex justify-between"><span className="text-amber-600">Total</span><span className="font-bold text-amber-900">₹199</span></div>
+                  <div className="flex justify-between"><span className="text-amber-600">Total</span><span className="font-bold text-amber-900">{COLORBOOK_PLAN.price}</span></div>
                 </div>
               </div>
 
               <div className="flex gap-3 mt-8">
                 <button onClick={() => setStep(2)} className="px-6 py-3 rounded-xl border-2 border-amber-200 text-amber-700 font-bold hover:bg-amber-50 transition-all">← Back</button>
-                <button onClick={handleSubmit} className="flex-1 py-3 rounded-xl fredoka text-lg btn-primary cursor-pointer">✨ Create Coloring Book!</button>
+                <button onClick={handleGeneratePreview} disabled={previewLoading} className={`flex-1 py-3 rounded-xl fredoka text-lg ${!previewLoading ? 'btn-primary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}>
+                  {previewLoading ? '✨ Creating Preview...' : '✨ Preview Coloring Book!'}
+                </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* STEP 3.5 — PREVIEW + PAYWALL */}
+        {step === 3.5 && previewData && (
+          <div className="step-enter">
+            <div className="text-center mb-8">
+              <div className="text-4xl mb-3">🖍️</div>
+              <h1 className="fredoka text-3xl text-amber-900 mb-2">{previewData.title}</h1>
+              <p className="text-amber-700">Here&apos;s a sneak peek of {formData.childName}&apos;s coloring book!</p>
+            </div>
+
+            {/* Preview Pages with actual illustrations */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              {/* Page 1 — fully visible */}
+              <div className="bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
+                <div className="p-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-amber-400 text-white flex items-center justify-center text-xs font-bold">1</div>
+                  <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">
+                    {formData.mode === 'abc' ? `Letter ${previewData.pages[0]?.letter}` : `Number ${previewData.pages[0]?.number}`}
+                  </span>
+                  <span className="ml-auto text-sm font-bold text-amber-800">{previewData.pages[0]?.word}</span>
+                </div>
+                {previewData.illustrations[0] && (
+                  <img src={previewData.illustrations[0]} alt="Preview page 1" className="w-full" />
+                )}
+                <div className="p-4">
+                  <p className="text-gray-800 text-sm leading-relaxed" style={{ fontFamily: 'Georgia, serif' }}>
+                    {previewData.pages[0]?.text}
+                  </p>
+                </div>
+              </div>
+
+              {/* Page 2 — blurred + locked */}
+              <div className="relative rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
+                <div className="bg-white" style={{ filter: 'blur(5px)', userSelect: 'none' }}>
+                  <div className="p-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-amber-400 text-white flex items-center justify-center text-xs font-bold">2</div>
+                    <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">
+                      {formData.mode === 'abc' ? `Letter ${previewData.pages[1]?.letter}` : `Number ${previewData.pages[1]?.number}`}
+                    </span>
+                  </div>
+                  {previewData.illustrations[1] && (
+                    <img src={previewData.illustrations[1]} alt="Preview page 2" className="w-full" />
+                  )}
+                  <div className="p-4">
+                    <p className="text-gray-800 text-sm leading-relaxed" style={{ fontFamily: 'Georgia, serif' }}>
+                      {previewData.pages[1]?.text}
+                    </p>
+                  </div>
+                </div>
+                {/* Lock overlay */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-amber-50/60 backdrop-blur-sm">
+                  <div className="text-4xl mb-2">🔒</div>
+                  <p className="text-amber-800 font-bold text-sm">Unlock to see all pages</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Remaining pages indicator */}
+            <div className="flex items-center justify-center gap-2 py-2 mb-6">
+              {Array.from({ length: Math.max(0, formData.pageCount - 2) }, (_, i) => (
+                <div key={i} className="w-8 h-1 bg-amber-200 rounded-full" />
+              ))}
+              <span className="text-xs text-amber-400 font-semibold ml-2">
+                +{Math.max(0, formData.pageCount - 2)} more coloring pages
+              </span>
+            </div>
+
+            {/* Paywall Card */}
+            <div className="bg-white rounded-2xl border-2 border-amber-300 p-6 shadow-lg">
+              <div className="text-center mb-5">
+                <div className="text-3xl mb-2">✨</div>
+                <h3 className="fredoka text-xl text-amber-900 mb-1">Unlock {formData.childName}&apos;s Full Coloring Book</h3>
+                <p className="text-amber-600 text-sm">
+                  {formData.pageCount} printable coloring pages · Line art illustrations · Downloadable PDF
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handlePayment}
+                  disabled={paymentLoading}
+                  className={`w-full py-4 rounded-xl fredoka text-lg transition-all ${paymentLoading ? 'bg-amber-200 text-amber-400 cursor-not-allowed' : 'btn-primary cursor-pointer'}`}
+                >
+                  {paymentLoading ? 'Processing...' : `Pay ${COLORBOOK_PLAN.price} — Digital PDF 🖨️`}
+                </button>
+
+                <button
+                  disabled
+                  className="w-full py-4 rounded-xl border-2 border-amber-200 text-amber-400 fredoka text-lg cursor-not-allowed"
+                >
+                  📦 Printed Book — Coming Soon
+                </button>
+              </div>
+
+              <div className="mt-4 flex items-center justify-center gap-4 text-xs text-amber-500">
+                <span>🔒 Secure payment via Razorpay</span>
+                <span>•</span>
+                <span>💳 UPI, Cards, Netbanking</span>
+              </div>
+            </div>
+
+            {/* Back button */}
+            <button
+              onClick={() => setStep(3)}
+              className="mt-4 w-full py-3 rounded-xl border-2 border-amber-200 text-amber-700 font-bold hover:bg-amber-50 transition-all"
+            >
+              ← Back to Review
+            </button>
           </div>
         )}
 
@@ -443,7 +707,7 @@ export default function CreateColorbook() {
                 illustrations={illustrations}
                 childName={formData.childName}
                 mode={formData.mode}
-                onRestart={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); }}
+                onRestart={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); setPreviewData(null); }}
               />
             )}
 

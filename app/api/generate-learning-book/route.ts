@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       dedication,
       userId,
       photoUrl,
+      existingOrderId,
     } = await request.json()
 
     console.log('=== Generate Learning Book ===')
@@ -87,27 +88,41 @@ Return only a single paragraph description, no JSON, no markdown. Use the name $
       }
     }
 
-    // ── Step 2: Save order to Supabase ───────
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        child_name: childName,
-        child_age: age,
-        interests: interests,
-        theme: mode === 'abc' ? 'ABC Adventure' : '123 World',
-        status: 'generating',
-        user_id: userId,
-        amount: 199,
-        book_type: 'coloringbook',
-      })
-      .select()
-      .single()
+    // ── Step 2: Get or create order ──────────
+    let orderId: string
 
-    if (orderError) {
-      console.log('Order error:', orderError)
-      return NextResponse.json({ error: orderError.message }, { status: 500 })
+    if (existingOrderId) {
+      // Payment flow: order already created by /api/create-order
+      orderId = existingOrderId
+      await supabase
+        .from('orders')
+        .update({ status: 'generating' })
+        .eq('id', orderId)
+      console.log('Using existing order:', orderId)
+    } else {
+      // Legacy/direct flow: create a new order
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          child_name: childName,
+          child_age: age,
+          interests: interests,
+          theme: mode === 'abc' ? 'ABC Adventure' : '123 World',
+          status: 'generating',
+          user_id: userId,
+          amount: 199,
+          book_type: 'coloringbook',
+        })
+        .select()
+        .single()
+
+      if (orderError) {
+        console.log('Order error:', orderError)
+        return NextResponse.json({ error: orderError.message }, { status: 500 })
+      }
+      orderId = order.id
+      console.log('New order saved:', orderId)
     }
-    console.log('Order saved:', order.id)
 
     // ── Step 3: Build Claude prompt for learning book ───
     const isAbc = mode === 'abc'
@@ -176,7 +191,7 @@ Each page must have: page, ${itemField}, word, text (1-2 sentences), scene (deta
     const { data: savedStory, error: storyError } = await supabase
       .from('stories')
       .insert({
-        order_id: order.id,
+        order_id: orderId,
         title: story.title,
         pages_json: story.pages,
         status: 'complete',
@@ -215,7 +230,7 @@ Each page must have: page, ${itemField}, word, text (1-2 sentences), scene (deta
 
     // ── Step 7: Save illustrations to Supabase ─
     const illustrationRows = illustrations.map((url: string, index: number) => ({
-      order_id: order.id,
+      order_id: orderId,
       story_id: savedStory.id,
       page_number: index + 1,
       image_url: url,
@@ -235,7 +250,7 @@ Each page must have: page, ${itemField}, word, text (1-2 sentences), scene (deta
     await supabase
       .from('orders')
       .update({ status: 'complete' })
-      .eq('id', order.id)
+      .eq('id', orderId)
 
     // ── Step 9: Auto-generate coloring PDF ────
     try {
@@ -248,7 +263,7 @@ Each page must have: page, ${itemField}, word, text (1-2 sentences), scene (deta
           illustrations,
           childName,
           dedication: dedication || '',
-          orderId: order.id,
+          orderId: orderId,
           mode,
         }),
       })
@@ -260,7 +275,7 @@ Each page must have: page, ${itemField}, word, text (1-2 sentences), scene (deta
 
     return NextResponse.json({
       success: true,
-      orderId: order.id,
+      orderId: orderId,
       story,
       illustrations,
     })

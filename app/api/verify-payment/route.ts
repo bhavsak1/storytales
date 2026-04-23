@@ -1,0 +1,102 @@
+import { NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
+import crypto from 'crypto'
+
+export async function POST(request: Request) {
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      orderId,
+      // Form data for generation
+      childName,
+      age,
+      gender,
+      interests,
+      theme,
+      storyLength,
+      dedication,
+      userId,
+      photoUrl,
+      email,
+    } = await request.json()
+
+    // ── Step 1: Verify Razorpay Signature ──
+    const body = razorpay_order_id + '|' + razorpay_payment_id
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
+      .update(body)
+      .digest('hex')
+
+    if (expectedSignature !== razorpay_signature) {
+      console.log('Payment signature verification failed')
+      return NextResponse.json(
+        { error: 'Payment verification failed. Invalid signature.' },
+        { status: 400 }
+      )
+    }
+
+    console.log('Payment signature verified for order:', orderId)
+
+    // ── Step 2: Update order as paid ──
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({
+        payment_id: razorpay_payment_id,
+        payment_status: 'paid',
+        status: 'generating',
+      })
+      .eq('id', orderId)
+
+    if (updateError) {
+      console.log('Order update error:', updateError)
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
+    }
+
+    console.log('Order marked as paid, triggering generation for:', orderId)
+
+    // ── Step 3: Trigger full story generation ──
+    // Call the existing /api/generate route internally
+    const origin = request.headers.get('origin') || request.headers.get('host') || 'http://localhost:3000'
+    const baseUrl = origin.startsWith('http') ? origin : `http://${origin}`
+
+    const generateResponse = await fetch(`${baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        childName,
+        age,
+        gender,
+        interests,
+        theme,
+        storyLength,
+        dedication,
+        userId,
+        photoUrl,
+        email,
+        // Pass the existing orderId so /api/generate uses it instead of creating a new one
+        existingOrderId: orderId,
+      }),
+    })
+
+    const generateData = await generateResponse.json()
+
+    if (!generateData.success) {
+      return NextResponse.json(
+        { error: generateData.error || 'Story generation failed' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      orderId,
+      story: generateData.story,
+      illustrations: generateData.illustrations,
+    })
+  } catch (error) {
+    console.log('Verify payment error:', error)
+    return NextResponse.json({ error: String(error) }, { status: 500 })
+  }
+}

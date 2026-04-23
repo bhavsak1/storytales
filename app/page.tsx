@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { STORY_PLANS } from '@/lib/pricing'
 
 export default function LandingPage() {
   const books = [
@@ -21,11 +22,7 @@ export default function LandingPage() {
     { emoji: '🦄', title: "Mia's Enchanted Forest", theme: 'Enchanted Forest', age: '4 years', bg: '#F0FFE8', text: "Deep in the forest behind her dadi's village, little Mia heard a melody that only she could follow..." },
   ]
 
-  const plans = [
-    { name: 'Digital PDF', price: '₹299', desc: 'Download instantly. Read on any device.', features: ['Personalized story', 'AI illustrations', 'PDF download', 'Email delivery'], popular: false },
-    { name: 'Printed Hardcover', price: '₹1,199', desc: 'Premium full-color book delivered to your door.', features: ['Everything in Digital', 'Hardcover print', 'Ships in 5-7 days', 'Gift ready'], popular: true },
-    { name: 'Both', price: '₹1,399', desc: 'Best value — PDF now, hardcover later.', features: ['Everything included', 'PDF instantly', 'Hardcover shipped', 'Best value'], popular: false },
-  ]
+  const plans = STORY_PLANS
 
   const trust = [
     { icon: '🎨', text: 'AI illustrated' },
@@ -192,15 +189,34 @@ export default function LandingPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {plans.map((plan, i) => (
-            <div key={i} className={`rounded-2xl overflow-hidden ${plan.popular ? 'border-4 border-amber-400 bg-amber-50' : 'border-2 border-amber-100 bg-white'}`}>
+            <div key={i} className={`rounded-2xl overflow-hidden relative ${plan.popular ? 'border-4 border-amber-400 bg-amber-50' : 'border-2 border-amber-100 bg-white'}`}>
               {plan.popular && (
                 <div className="bg-amber-400 text-white text-center py-2 text-xs font-bold uppercase tracking-wide">
-                  Most Popular
+                  ⭐ Most Popular
                 </div>
               )}
-              <div className="p-6">
+              {plan.comingSoon && (
+                <div className="bg-gradient-to-r from-amber-200 to-amber-300 text-amber-800 text-center py-2 text-xs font-bold uppercase tracking-wide">
+                  🚀 Coming Soon
+                </div>
+              )}
+              <div className={`p-6 ${plan.comingSoon ? 'opacity-75' : ''}`}>
                 <div className="fredoka text-xl text-amber-900 mb-1">{plan.name}</div>
-                <div className="fredoka text-3xl mb-2" style={{ color: plan.popular ? '#F4867A' : '#D4881A' }}>{plan.price}</div>
+                {plan.comingSoon ? (
+                  <div className="fredoka text-2xl mb-2 text-amber-400">Coming Soon</div>
+                ) : (
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="fredoka text-3xl" style={{ color: '#F4867A' }}>{plan.price}</span>
+                    {plan.originalPrice && (
+                      <span className="text-lg text-amber-400 line-through font-bold">{plan.originalPrice}</span>
+                    )}
+                  </div>
+                )}
+                {plan.originalPrice && !plan.comingSoon && (
+                  <div className="inline-block bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full mb-3">
+                    🎉 Introductory Offer
+                  </div>
+                )}
                 <p className="text-sm text-amber-700 mb-4 leading-relaxed">{plan.desc}</p>
                 <div className="flex flex-col gap-2 mb-5">
                   {plan.features.map((f, fi) => (
@@ -209,9 +225,15 @@ export default function LandingPage() {
                     </div>
                   ))}
                 </div>
-                <Link href="/create" className={`block text-center py-3 rounded-full fredoka text-base no-underline transition-all ${plan.popular ? 'btn-pink' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`} style={{ boxShadow: plan.popular ? '0 4px 14px rgba(244,134,122,0.35)' : 'none' }}>
-                  Get Started ✨
-                </Link>
+                {plan.comingSoon ? (
+                  <div className="block text-center py-3 rounded-full fredoka text-base bg-amber-100 text-amber-400 cursor-not-allowed">
+                    Notify Me 🔔
+                  </div>
+                ) : (
+                  <Link href="/create" className={`block text-center py-3 rounded-full fredoka text-base no-underline transition-all ${plan.popular ? 'btn-pink' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`} style={{ boxShadow: plan.popular ? '0 4px 14px rgba(244,134,122,0.35)' : 'none' }}>
+                    Get Started ✨
+                  </Link>
+                )}
               </div>
             </div>
           ))}

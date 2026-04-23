@@ -6,6 +6,15 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
+import Script from 'next/script'
+import { STORY_PLANS, getActivePlan } from '@/lib/pricing'
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare global {
+  interface Window {
+    Razorpay: any
+  }
+}
 
 
 interface StoryPage {
@@ -61,11 +70,7 @@ const LENGTHS = [
   { label: 'Epic Tale', emoji: '🏆', pages: '8 pages', value: '8' },
 ]
 
-const DELIVERY = [
-  { label: 'Digital PDF', emoji: '📲', desc: 'Download instantly', price: '₹299', value: 'digital' },
-  { label: 'Printed Book', emoji: '📦', desc: 'Ships in 5-7 days', price: '₹1,199', value: 'print' },
-  { label: 'Both', emoji: '🎁', desc: 'PDF + hardcover', price: '₹1,399', value: 'both' },
-]
+const DELIVERY = STORY_PLANS
 
 export default function Home() {
   const [step, setStep] = useState(1)
@@ -91,6 +96,12 @@ const [photoValidating, setPhotoValidating] = useState(false)
 const [photoValid, setPhotoValid] = useState<boolean | null>(null)
 const [photoError, setPhotoError] = useState('')
 const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+
+// ── Preview + Payment state ──
+const [previewData, setPreviewData] = useState<{ title: string; pages: { page: number; text: string }[]; illustrations: (string | null)[] } | null>(null)
+const [previewLoading, setPreviewLoading] = useState(false)
+const [paymentLoading, setPaymentLoading] = useState(false)
+const [savedOrderId, setSavedOrderId] = useState<string | null>(null)
 
   useEffect(() => {
     const getUser = async () => {
@@ -163,6 +174,142 @@ const removePhoto = () => {
   if (input) input.value = ''
 }
 
+  // ── Generate preview (2 pages with illustrations) ──
+  const handleGeneratePreview = async () => {
+    setPreviewLoading(true)
+    try {
+      const response = await fetch('/api/generate-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childName: formData.childName,
+          age: formData.age,
+          gender: formData.gender,
+          interests: formData.interests.join(', '),
+          theme: formData.theme,
+          photoUrl: photoUrl,
+        }),
+      })
+      const data = await response.json()
+      if (data.success) {
+        setPreviewData({ title: data.title, pages: data.pages, illustrations: data.illustrations || [] })
+        setStep(3.5)
+      } else {
+        alert('Could not generate preview. Please try again.')
+      }
+    } catch {
+      alert('Something went wrong. Please try again.')
+    }
+    setPreviewLoading(false)
+  }
+
+  // ── Razorpay payment flow ──
+  const handlePayment = async () => {
+    setPaymentLoading(true)
+    try {
+      // 1. Create order on server
+      const orderRes = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childName: formData.childName,
+          age: formData.age,
+          gender: formData.gender,
+          interests: formData.interests.join(', '),
+          theme: formData.theme,
+          storyLength: formData.storyLength,
+          deliveryType: formData.deliveryType,
+          dedication: formData.dedication,
+          userId: user?.id,
+          photoUrl: photoUrl,
+          email: formData.email,
+        }),
+      })
+      const orderData = await orderRes.json()
+      if (!orderData.success) {
+        alert('Could not create order. Please try again.')
+        setPaymentLoading(false)
+        return
+      }
+
+      setSavedOrderId(orderData.orderId)
+      console.log('Order created:', { orderId: orderData.orderId, razorpayOrderId: orderData.razorpayOrderId, amount: orderData.amount, keyId: orderData.keyId })
+
+      // 2. Open Razorpay checkout modal
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'StoryGennie',
+        description: `${previewData?.title || 'Personalized Storybook'} for ${formData.childName}`,
+        order_id: orderData.razorpayOrderId,
+        handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+          // 3. Verify payment and trigger generation
+          setStatus('generating')
+          setStep(4)
+          try {
+            const verifyRes = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: orderData.orderId,
+                childName: formData.childName,
+                age: formData.age,
+                gender: formData.gender,
+                interests: formData.interests.join(', '),
+                theme: formData.theme,
+                storyLength: formData.storyLength,
+                dedication: formData.dedication,
+                userId: user?.id,
+                photoUrl: photoUrl,
+                email: formData.email,
+              }),
+            })
+            const verifyData = await verifyRes.json()
+            if (verifyData.success) {
+              setStatus('complete')
+              setStory(verifyData.story)
+              setIllustrations(verifyData.illustrations || [])
+            } else {
+              setStatus('error')
+            }
+          } catch {
+            setStatus('error')
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setPaymentLoading(false)
+          },
+        },
+        prefill: {
+          email: formData.email,
+          contact: '',
+        },
+        theme: {
+          color: '#F4A832',
+        },
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.on('payment.failed', (response: any) => {
+        console.log('Razorpay payment failed:', response.error)
+        alert(`Oops! Something went wrong.\n${response.error?.description || 'Payment Failed'}`)
+        setPaymentLoading(false)
+      })
+      rzp.open()
+      setPaymentLoading(false)
+    } catch (err) {
+      console.log('Payment error:', err)
+      alert('Payment failed. Please try again.')
+      setPaymentLoading(false)
+    }
+  }
+
+  // ── Legacy direct submit (kept for backward compat) ──
   const handleSubmit = async () => {
     setStatus('generating')
     setStep(4)
@@ -201,6 +348,8 @@ const removePhoto = () => {
 
   return (
     <main className="min-h-screen bg-amber-50" style={{ fontFamily: "'Nunito', sans-serif" }}>
+      {/* Razorpay checkout script */}
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
         .fredoka { font-family: 'Fredoka One', cursive; }
@@ -219,14 +368,17 @@ const removePhoto = () => {
 
       {/* NAV */}
       <nav className="bg-white border-b border-amber-100 px-6 py-4 flex items-center justify-between">
-  <div className="flex items-center gap-2">
+  <Link href="/" className="no-underline flex items-center gap-2">
   <img src="/logo.jpg" alt="StoryGennie" className="h-15 w-auto" />
   <span className="fredoka text-xl md:text-2xl text-amber-900">StoryGennie</span>
-</div>
+</Link>
   
   <div className="flex items-center gap-3">
   {user && (
     <>
+      <Link href="/" className="text-sm font-bold text-amber-700 hover:text-amber-900 no-underline hidden sm:block">
+        Home
+      </Link>
       <Link href="/orders" className="text-sm font-bold text-amber-700 hover:text-amber-900 no-underline hidden sm:block">
         My Orders
       </Link>
@@ -256,16 +408,16 @@ const removePhoto = () => {
   {step < 4 && (
 
           <div className="flex items-center gap-2">
-            {[1, 2, 3].map(s => (
+            {[1, 2, 3, 4].map(s => (
               <div key={s} className="flex items-center gap-2">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                  s < step ? 'bg-green-500 text-white' :
-                  s === step ? 'bg-amber-500 text-white' :
+                  s < Math.ceil(step) ? 'bg-green-500 text-white' :
+                  s === Math.ceil(step) ? 'bg-amber-500 text-white' :
                   'bg-amber-100 text-amber-400'
                 }`}>
-                  {s < step ? '✓' : s}
+                  {s < Math.ceil(step) ? '✓' : s}
                 </div>
-                {s < 3 && <div className={`w-8 h-0.5 ${s < step ? 'bg-green-400' : 'bg-amber-200'}`} />}
+                {s < 4 && <div className={`w-8 h-0.5 ${s < Math.ceil(step) ? 'bg-green-400' : 'bg-amber-200'}`} />}
               </div>
             ))}
           </div>
@@ -562,20 +714,34 @@ const removePhoto = () => {
               <div>
                 <label className="text-xs font-bold text-amber-800 uppercase tracking-wide block mb-3">Delivery</label>
                 <div className="space-y-2">
-                  {DELIVERY.map(({ label, emoji, desc, price, value }) => (
+                  {DELIVERY.map((plan) => (
                     <button
-                      key={value}
-                      onClick={() => setFormData({ ...formData, deliveryType: value })}
+                      key={plan.value}
+                      onClick={() => !plan.comingSoon && setFormData({ ...formData, deliveryType: plan.value })}
+                      disabled={plan.comingSoon}
                       className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${
-                        formData.deliveryType === value ? 'delivery-sel' : 'border-amber-200 bg-amber-50 hover:border-amber-300'
+                        plan.comingSoon
+                          ? 'border-amber-100 bg-amber-50/50 opacity-60 cursor-not-allowed'
+                          : formData.deliveryType === plan.value ? 'delivery-sel' : 'border-amber-200 bg-amber-50 hover:border-amber-300'
                       }`}
                     >
-                      <span className="text-2xl">{emoji}</span>
+                      <span className="text-2xl">{plan.emoji}</span>
                       <div className="flex-1">
-                        <div className="font-bold text-amber-900">{label}</div>
-                        <div className="text-xs text-amber-600">{desc}</div>
+                        <div className="font-bold text-amber-900 flex items-center gap-2">
+                          {plan.name}
+                          {plan.comingSoon && <span className="text-xs bg-amber-200 text-amber-700 px-2 py-0.5 rounded-full font-bold">Coming Soon</span>}
+                          {plan.popular && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">🎉 Intro Offer</span>}
+                        </div>
+                        <div className="text-xs text-amber-600">{plan.shortDesc}</div>
                       </div>
-                      <div className="fredoka text-lg text-green-600">{price}</div>
+                      {plan.comingSoon ? (
+                        <div className="fredoka text-sm text-amber-400">Coming Soon</div>
+                      ) : (
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="fredoka text-lg text-green-600">{plan.price}</span>
+                          {plan.originalPrice && <span className="text-sm text-amber-400 line-through">{plan.originalPrice}</span>}
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -600,14 +766,119 @@ const removePhoto = () => {
                   ← Back
                 </button>
                 <button
-                  onClick={handleSubmit}
-                  disabled={!canProceedStep3}
-                  className={`flex-1 py-3 rounded-xl fredoka text-lg ${canProceedStep3 ? 'btn-primary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
+                  onClick={handleGeneratePreview}
+                  disabled={!canProceedStep3 || previewLoading}
+                  className={`flex-1 py-3 rounded-xl fredoka text-lg ${canProceedStep3 && !previewLoading ? 'btn-primary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
                 >
-                  ✨ Create My Story!
+                  {previewLoading ? '✨ Creating Preview...' : '✨ Preview My Story!'}
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* STEP 3.5 — PREVIEW + PAYWALL */}
+        {step === 3.5 && previewData && (
+          <div className="step-enter">
+            <div className="text-center mb-8">
+              <div className="text-4xl mb-3">📖</div>
+              <h1 className="fredoka text-3xl text-amber-900 mb-2">{previewData.title}</h1>
+              <p className="text-amber-700">Here&apos;s a sneak peek of {formData.childName}&apos;s story!</p>
+            </div>
+
+            {/* Preview Pages with illustrations */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              {/* Page 1 — fully visible */}
+              <div className="bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
+                <div className="p-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-amber-400 text-white flex items-center justify-center text-xs font-bold">1</div>
+                  <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">Page 1</span>
+                </div>
+                {previewData.illustrations[0] && (
+                  <img src={previewData.illustrations[0]} alt="Preview page 1" className="w-full" />
+                )}
+                <div className="p-4">
+                  <p className="text-gray-800 leading-relaxed text-base" style={{ fontFamily: 'Georgia, serif' }}>
+                    {previewData.pages[0]?.text}
+                  </p>
+                </div>
+              </div>
+
+              {/* Page 2 — blurred + locked */}
+              <div className="relative rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
+                <div className="bg-white" style={{ filter: 'blur(5px)', userSelect: 'none' }}>
+                  <div className="p-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-amber-400 text-white flex items-center justify-center text-xs font-bold">2</div>
+                    <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">Page 2</span>
+                  </div>
+                  {previewData.illustrations[1] && (
+                    <img src={previewData.illustrations[1]} alt="Preview page 2" className="w-full" />
+                  )}
+                  <div className="p-4">
+                    <p className="text-gray-800 leading-relaxed text-base" style={{ fontFamily: 'Georgia, serif' }}>
+                      {previewData.pages[1]?.text}
+                    </p>
+                  </div>
+                </div>
+                {/* Lock overlay */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-amber-50/60 backdrop-blur-sm">
+                  <div className="text-4xl mb-2">🔒</div>
+                  <p className="text-amber-800 font-bold text-sm">Unlock to read more</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Remaining pages indicator */}
+            <div className="flex items-center justify-center gap-2 py-2">
+              {Array.from({ length: Math.max(0, parseInt(formData.storyLength) - 2) }, (_, i) => (
+                <div key={i} className="w-8 h-1 bg-amber-200 rounded-full" />
+              ))}
+              <span className="text-xs text-amber-400 font-semibold ml-2">
+                +{Math.max(0, parseInt(formData.storyLength) - 2)} more pages
+              </span>
+            </div>
+
+            {/* Paywall Card */}
+            <div className="bg-white rounded-2xl border-2 border-amber-300 p-6 shadow-lg">
+              <div className="text-center mb-5">
+                <div className="text-3xl mb-2">✨</div>
+                <h3 className="fredoka text-xl text-amber-900 mb-1">Unlock {formData.childName}&apos;s Full Book</h3>
+                <p className="text-amber-600 text-sm">
+                  {formData.storyLength} illustrated pages · Beautiful watercolor art · Downloadable PDF
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handlePayment}
+                  disabled={paymentLoading}
+                  className={`w-full py-4 rounded-xl fredoka text-lg transition-all ${paymentLoading ? 'bg-amber-200 text-amber-400 cursor-not-allowed' : 'btn-primary cursor-pointer'}`}
+                >
+                  {paymentLoading ? 'Processing...' : `Pay ${getActivePlan().price} — Digital PDF 📲`}
+                </button>
+
+                <button
+                  disabled
+                  className="w-full py-4 rounded-xl border-2 border-amber-200 text-amber-400 fredoka text-lg cursor-not-allowed"
+                >
+                  📦 Printed Hardcover — Coming Soon
+                </button>
+              </div>
+
+              <div className="mt-4 flex items-center justify-center gap-4 text-xs text-amber-500">
+                <span>🔒 Secure payment via Razorpay</span>
+                <span>•</span>
+                <span>💳 UPI, Cards, Netbanking</span>
+              </div>
+            </div>
+
+            {/* Back button */}
+            <button
+              onClick={() => setStep(3)}
+              className="mt-4 w-full py-3 rounded-xl border-2 border-amber-200 text-amber-700 font-bold hover:bg-amber-50 transition-all"
+            >
+              ← Back to Theme Selection
+            </button>
           </div>
         )}
 
@@ -631,7 +902,7 @@ const removePhoto = () => {
   childName={formData.childName}
   dedication={formData.dedication}
   customerEmail={formData.email}
-  onRestart={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); }}
+  onRestart={() => { setStep(1); setStatus(''); setStory(null); setIllustrations([]); setPreviewData(null); setSavedOrderId(null); }}
 />
 )}
 
