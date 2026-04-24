@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
 import { fal } from '@fal-ai/client'
 import { supabase } from '@/lib/supabase'
+import { validateExternalUrl } from '@/lib/security'
+
 
 export const dynamic = 'force-dynamic'
 
@@ -135,7 +137,8 @@ export async function POST(request: Request) {
     console.log('Avatar generated:', avatarUrl)
 
     // Step 4: Save avatar to Supabase Storage
-    const avatarResponse = await fetch(avatarUrl)
+    const safeAvatarUrl = await validateExternalUrl(avatarUrl)
+    const avatarResponse = await fetch(safeAvatarUrl)
     const avatarBuffer = await avatarResponse.arrayBuffer()
     const fileName = `avatars/${Date.now()}-avatar.jpg`
 

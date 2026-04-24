@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
+import { validateExternalUrl } from '@/lib/security'
 
 // ─────────────────────────────────────────────
 // Types
@@ -38,7 +39,8 @@ export async function POST(request: Request) {
 
     if (photoUrl) {
       try {
-        const photoResponse = await fetch(photoUrl)
+        const safeUrl = await validateExternalUrl(photoUrl)
+        const photoResponse = await fetch(safeUrl)
         const photoBuffer = await photoResponse.arrayBuffer()
         const base64Photo = Buffer.from(photoBuffer).toString('base64')
         const contentType = photoResponse.headers.get('content-type') || 'image/jpeg'

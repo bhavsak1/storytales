@@ -265,7 +265,7 @@ export default function LandingPage() {
 
       {/* FOOTER */}
       <footer className="bg-amber-950 py-6 text-center text-xs text-amber-700 font-semibold">
-        Made with ❤️ for little dreamers everywhere · © 2025 StoryTales
+        Made with ❤️ for little dreamers everywhere · © 2025 StoryGennie
       </footer>
     </main>
   )

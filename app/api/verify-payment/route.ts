@@ -37,7 +37,24 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log('Payment signature verified for order:', orderId)
+    console.log('Payment signature verified for client orderId:', orderId)
+
+    // ── Secure IDOR Protection: Fetch true order ID using verified razorpay_order_id ──
+    const { data: orderRecord, error: fetchError } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('razorpay_order_id', razorpay_order_id)
+      .single()
+
+    if (fetchError || !orderRecord) {
+      console.log('Order lookup failed for razorpay_order_id:', razorpay_order_id)
+      return NextResponse.json(
+        { error: 'Order not found for this payment.' },
+        { status: 404 }
+      )
+    }
+
+    const secureOrderId = orderRecord.id
 
     // ── Step 2: Update order as paid ──
     const { error: updateError } = await supabase
@@ -47,14 +64,14 @@ export async function POST(request: Request) {
         payment_status: 'paid',
         status: 'generating',
       })
-      .eq('id', orderId)
+      .eq('id', secureOrderId)
 
     if (updateError) {
       console.log('Order update error:', updateError)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    console.log('Order marked as paid, triggering generation for:', orderId)
+    console.log('Order marked as paid, triggering generation for:', secureOrderId)
 
     // ── Step 3: Trigger full story generation ──
     // Call the existing /api/generate route internally
@@ -76,7 +93,7 @@ export async function POST(request: Request) {
         photoUrl,
         email,
         // Pass the existing orderId so /api/generate uses it instead of creating a new one
-        existingOrderId: orderId,
+        existingOrderId: secureOrderId,
       }),
     })
 
@@ -91,7 +108,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      orderId,
+      orderId: secureOrderId,
       story: generateData.story,
       illustrations: generateData.illustrations,
     })
