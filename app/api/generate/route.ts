@@ -211,7 +211,8 @@ export async function POST(request: Request) {
 
     // ── Step 8: Auto-generate PDF ─────────────
     try {
-      const pdfResponse = await fetch('http://localhost:3000/api/generate-pdf', {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin') || 'http://localhost:3000'
+      const pdfResponse = await fetch(`${baseUrl}/api/generate-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
