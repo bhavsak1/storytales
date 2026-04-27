@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { STORY_PLANS } from '@/lib/pricing'
+import { TrackedCTA } from './components/TrackedCTA'
 
 export default function LandingPage() {
   const books = [
@@ -82,12 +83,12 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col items-center lg:items-start gap-3 justify-center lg:justify-start mb-7">
               <div className="flex flex-col sm:flex-row items-center lg:items-start gap-3 w-full">
-                <Link href="/create" className="btn-pink fredoka w-full sm:w-auto text-center px-8 py-4 rounded-full text-lg no-underline whitespace-nowrap" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
+                <TrackedCTA href="/create" className="btn-pink fredoka w-full sm:w-auto text-center px-8 py-4 rounded-full text-lg no-underline whitespace-nowrap" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }} location="hero">
                   Create Their Story ✨
-                </Link>
-                <Link href="/create-colorbook" className="btn-pink fredoka w-full sm:w-auto text-center px-8 py-4 rounded-full text-lg no-underline whitespace-nowrap" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }}>
+                </TrackedCTA>
+                <TrackedCTA href="/create-colorbook" className="btn-pink fredoka w-full sm:w-auto text-center px-8 py-4 rounded-full text-lg no-underline whitespace-nowrap" style={{ boxShadow: '0 6px 20px rgba(244,134,122,0.4)' }} location="hero_colorbook">
                   Create Their Colorbook 🖍️
-                </Link>
+                </TrackedCTA>
               </div>
               <a href="#how-it-works" className="text-amber-700 hover:text-amber-900 font-bold text-sm no-underline transition-all underline-offset-2" style={{ textDecoration: 'underline' }}>
                 See How it Works →

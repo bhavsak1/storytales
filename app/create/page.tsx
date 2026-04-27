@@ -8,6 +8,7 @@ import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
 import Script from 'next/script'
 import { STORY_PLANS, getActivePlan } from '@/lib/pricing'
+import { trackEvent } from '@/lib/analytics'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
@@ -270,6 +271,10 @@ const removePhoto = () => {
             })
             const verifyData = await verifyRes.json()
             if (verifyData.success) {
+              trackEvent('story_generation_complete', {
+                theme: formData.theme,
+                age_group: formData.age,
+              })
               setStatus('complete')
               setStory(verifyData.story)
               setIllustrations(verifyData.illustrations || [])
@@ -596,7 +601,13 @@ const removePhoto = () => {
               </div>
 
               <button
-                onClick={() => setStep(2)}
+                onClick={() => {
+                  trackEvent('wizard_step1_complete', {
+                    has_photo: photoUrl ? 'yes' : 'no',
+                    age_group: formData.age,
+                  })
+                  setStep(2)
+                }}
                 disabled={!canProceedStep1}
                 className={`w-full py-4 rounded-xl fredoka text-lg ${canProceedStep1 ? 'btn-secondary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
               >
@@ -667,7 +678,13 @@ const removePhoto = () => {
                   ← Back
                 </button>
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => {
+                    trackEvent('wizard_step2_complete', {
+                      interests_count: formData.interests.length,
+                      story_length: formData.storyLength,
+                    })
+                    setStep(3)
+                  }}
                   disabled={!canProceedStep2}
                   className={`flex-1 py-3 rounded-xl fredoka text-lg ${canProceedStep2 ? 'btn-secondary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
                 >
@@ -766,7 +783,15 @@ const removePhoto = () => {
                   ← Back
                 </button>
                 <button
-                  onClick={handleGeneratePreview}
+                  onClick={() => {
+                    trackEvent('wizard_step3_complete', {
+                      theme: formData.theme,
+                      age_group: formData.age,
+                      has_photo: photoUrl ? 'yes' : 'no',
+                      delivery_type: formData.deliveryType,
+                    })
+                    handleGeneratePreview()
+                  }}
                   disabled={!canProceedStep3 || previewLoading}
                   className={`flex-1 py-3 rounded-xl fredoka text-lg ${canProceedStep3 && !previewLoading ? 'btn-primary cursor-pointer' : 'bg-amber-100 text-amber-300 cursor-not-allowed'}`}
                 >
@@ -850,7 +875,14 @@ const removePhoto = () => {
 
               <div className="space-y-3">
                 <button
-                  onClick={handlePayment}
+                  onClick={() => {
+                    trackEvent('payment_initiated', {
+                      theme: formData.theme,
+                      age_group: formData.age,
+                      delivery_type: formData.deliveryType,
+                    })
+                    handlePayment()
+                  }}
                   disabled={paymentLoading}
                   className={`w-full py-4 rounded-xl fredoka text-lg transition-all ${paymentLoading ? 'bg-amber-200 text-amber-400 cursor-not-allowed' : 'btn-primary cursor-pointer'}`}
                 >
@@ -1195,6 +1227,10 @@ function PageFlipBook({
     const data = await response.json()
 
     if (data.success && data.pdfUrl) {
+      trackEvent('pdf_downloaded', {
+        child_name_length: childName.length,
+      })
+
       // Open PDF in new tab
       window.open(data.pdfUrl, '_blank')
 
